@@ -10,7 +10,7 @@
     <img src="https://pic4.zhimg.com/80/v2-f63d74cf9859eea57b0a78c9da00c9f3_720w.webp" alt="Logo" height="210">
   </a>
   <p align="center">
-    <h3>Open text classification for you, Start your NLP journey</h3>
+    <h3>Fast text classification for you, Start your NLP journey</h3>
       <a href="https://github.com/fast-llm/FastTextClassification/graphs/contributors">
         <img alt="GitHub Contributors" src="https://img.shields.io/github/contributors/fast-llm/FastTextClassification" />
       </a>
@@ -118,7 +118,7 @@ Operating environment: python3.6 + T4
 
 ## Result display: to be continued
 
-The author provides detailed experimental results from shallow to deep to multi-label for your reference. However, due to limited time and computing power, many experiments may not be optimal, please know! Therefore, everyone is very welcome to actively contribute, supplement related experiments, codes, new models, etc., and build OpenTextClassification together.
+The author provides detailed experimental results from shallow to deep to multi-label for your reference. However, due to limited time and computing power, many experiments may not be optimal, please know! Therefore, everyone is very welcome to actively contribute, supplement related experiments, codes, new models, etc., and build FastTextClassification together.
 
 For the time being, only part of the summary results are provided. I will add detailed experimental results and parameters when I have time. There are many, and it will take some time to sort them out.
 

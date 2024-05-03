@@ -10,7 +10,7 @@
     <img src="https://pic4.zhimg.com/80/v2-f63d74cf9859eea57b0a78c9da00c9f3_720w.webp" alt="Logo" height="210">
   </a>
   <p align="center">
-    <h3>Open text classification for you, Start your NLP journey</h3>
+    <h3>Fast text classification for you, Start your NLP journey</h3>
       <a href="https://github.com/fast-llm/FastTextClassification/graphs/contributors">
         <img alt="GitHub Contributors" src="https://img.shields.io/github/contributors/fast-llm/FastTextClassification" />
       </a>
@@ -51,13 +51,10 @@
   - 支持多标签文本分类
   - 支持多种embedding方式：inner/outer/random
 
-## FastTextClassification项目
-
-FastTextClassification项目为OpenNLP计划的第一个正式的开源项目，旨在Open NLP for everyone！在以ChatGPT/GPT4为代表的LLMs时代，在被OpenAI卷死之前，做一点有意义的事情！未来有一天，等到GPT-X发布的时候，或许有人会说NLP不存在了，但是我们想证明有人曾来过！
 
 ### 开发计划
 
-本项目的开发宗旨，打造全网最全面和最实用的文本分类项目和教程。如果有机会，未来希望可以做成开箱即用的文本分类工具，文本分类任务非常特殊，大部分情况下被认为是简单且基础的，然而却很难找到比较通用的文本分类工具，往往都是针对具体任务进行训练和部署。在NLP逐渐趋于大一统的今天，这一点非常不优雅，而且浪费资源。：***Open text classification for you, Start your NLP journey!\***
+本项目的开发宗旨，打造全网最全面和最实用的文本分类项目和教程。如果有机会，未来希望可以做成开箱即用的文本分类工具，文本分类任务非常特殊，大部分情况下被认为是简单且基础的，然而却很难找到比较通用的文本分类工具，往往都是针对具体任务进行训练和部署。在NLP逐渐趋于大一统的今天，这一点非常不优雅，而且浪费资源。：***Fast text classification for you, Start your NLP journey!\***
 
 **简要的开发计划**：
 
@@ -73,17 +70,6 @@ FastTextClassification项目为OpenNLP计划的第一个正式的开源项目，
 	2. 复杂的多标签分类：比如层次化等，TODO
 4. 【P0】支持不同的文本分类数据集/任务：文本分类任务又多又散，这是好事儿也是坏事儿。欢迎基于本项目报告各种数据集上的效果
 5. 【P4】支持简明易用的文本分类API：终极目标为实现一个足够通用和强大的文本分类模型，并实现自然语言交互的文本分类接口text_cls(text, candidate_labels)->label，给定文本和候选类别(有默认值)，输出文本所属的类别；同时支持可无成本或尽可能小的成本向特定领域泛化
-
-### 加入我们
-
-OpenNLP计划的其他内容尚在筹备中，暂时只开源了本项目。欢迎大家积极参与FastTextClassification的建设和讨论，一起变得更强！
-
-加入方式：
-
-- **项目建设**：可以在前面列出的开发计划中选择自己感兴趣的部分进行开发，建议优先选择高优先级的任务，比如添加更多的模型和数据结果。
-- 微信交流群：知识在讨论中发展，待定
-- 技术分享和讨论：输出倒逼输入，欢迎投稿，稿件会同步到本项目的docs目录和知乎专栏OpenNLP. 同时也欢迎大家积极的参与本项目的讨论https://github.com/fast-llm/FastTextClassification/discussions。
-
 
 
 ## 使用步骤
