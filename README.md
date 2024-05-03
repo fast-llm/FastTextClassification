@@ -6,53 +6,40 @@
 
 <h1 align="center">OpenTextClassification</h1>
 <div align="center">
-  <a href="https://github.com/AmbroseX/OpenTextClassification">
+  <a href="https://github.com/fast-llm/FastTextClassification">
     <img src="https://pic4.zhimg.com/80/v2-f63d74cf9859eea57b0a78c9da00c9f3_720w.webp" alt="Logo" height="210">
   </a>
-
   <p align="center">
     <h3>Open text classification for you, Start your NLP journey</h3>
-      <a href="https://github.com/AmbroseX/OpenTextClassification/graphs/contributors">
-        <img alt="GitHub Contributors" src="https://img.shields.io/github/contributors/AmbroseX/OpenTextClassification" />
+      <a href="https://github.com/fast-llm/FastTextClassification/graphs/contributors">
+        <img alt="GitHub Contributors" src="https://img.shields.io/github/contributors/fast-llm/FastTextClassification" />
       </a>
-      <a href="https://github.com/AmbroseX/OpenTextClassification/issues">
-        <img alt="Issues" src="https://img.shields.io/github/issues/AmbroseX/OpenTextClassification?color=0088ff" />
+      <a href="https://github.com/fast-llm/FastTextClassification/issues">
+        <img alt="Issues" src="https://img.shields.io/github/issues/fast-llm/FastTextClassification?color=0088ff" />
       </a>
-      <a href="https://github.com/AmbroseX/OpenTextClassification/discussions">
-        <img alt="Issues" src="https://img.shields.io/github/discussions/AmbroseX/OpenTextClassification?color=0088ff" />
+      <a href="https://github.com/fast-llm/FastTextClassification/discussions">
+        <img alt="Issues" src="https://img.shields.io/github/discussions/fast-llm/FastTextClassification?color=0088ff" />
       </a>
-      <a href="https://github.com/AmbroseX/OpenTextClassification/pulls">
-        <img alt="GitHub pull requests" src="https://img.shields.io/github/issues-pr/AmbroseX/OpenTextClassification?color=0088ff" />
-      <a href="https://github.com/AmbroseX/OpenTextClassification/stargazers">
-        <img alt="GitHub stars" src="https://img.shields.io/github/stars/AmbroseX/OpenTextClassification?color=ccf" />
+      <a href="https://github.com/fast-llm/FastTextClassification/pulls">
+        <img alt="GitHub pull requests" src="https://img.shields.io/github/issues-pr/fast-llm/FastTextClassification?color=0088ff" />
+      <a href="https://github.com/fast-llm/FastTextClassification/stargazers">
+        <img alt="GitHub stars" src="https://img.shields.io/github/stars/fast-llm/FastTextClassification?color=ccf" />
       </a>
       <br/>
       <em>开源实现 / 简单 / 全面 / 实践 </em>
       <br/>
-      <a href="https://zhuanlan.zhihu.com/p/596112080/"><strong>文章解读</strong></a>
-        ·
-      <a href="https://zhuanlan.zhihu.com/p/617133715?"><strong>视频解读</strong></a>
     </p>
-
-
-
  </p>
 </div>
 
 > **功能免费，代码开源，大家放心使用，欢迎贡献！**
 
-
 - [💥最新讯息](#最新讯息)
-- [💫OpenNLP计划](#OpenNLP计划)
-- [💫OpenTextCLS](#OpenTextClassification项目)
 - [⛏️使用步骤](#使用步骤)
 - [📄运行示例](#运行示例)
 - [📄结果展示](#结果展示)
 - [🛠️常见报错](#常见报错)
 - [💐参考资料&致谢](#参考资料&致谢)
-- [🌟赞助我们](#赞助我们)
-- [🌈Starchart](#Starchart)
-- [🏆Contributors](#Contributors)
 
 ## 最新讯息
 
@@ -63,25 +50,6 @@
   - 支持多种文本分类模型：传统机器学习浅层模型、深度学习模型和transformers类模型
   - 支持多标签文本分类
   - 支持多种embedding方式：inner/outer/random
-
-## OpenNLP计划
-
-我们是谁？
-
-我们是**羡鱼智能**【xianyu.ai】，主要成员是一群来自老和山下、西湖边上的咸鱼们，塘主叫作羡鱼，想在LLMs时代做点有意义的事！我们的口号是：**做OpenNLP和OpenX！希望在CloseAI卷死我们之前退出江湖！**
-
-也许有一天，等到GPT-X发布的时候，有人会说NLP不存在了，但是我们想证明有人曾经来过、热爱过！在以ChatGPT/GPT4为代表的LLMs时代，在被CloseAI卷死之前，我们发起了OpenNLP计划，宗旨是OpenNLP for everyone! 
-
-- 【P0】OpenTextClassification：打造一流的文本分类项目，已开源
-	- 综述：done
-	- 开源项目：done
-	- papers解读：doing
-	- 炼丹术：doing
-- 【P0】OpenSE：句嵌入，自然语言处理的核心问题之一，doing
-- 【P0】OpenChat：筹备中，贫穷使人绝望，无卡使人悲伤
-- 【P1】OpenLLMs：大语言模型，doing
-- 【P2】OpenTextTagger：文本标注，分词、NER、词性标注等
-- OpenX：任重而道远
 
 ## OpenTextClassification项目
 
@@ -114,7 +82,7 @@ OpenNLP计划的其他内容尚在筹备中，暂时只开源了本项目。欢�
 
 - **项目建设**：可以在前面列出的开发计划中选择自己感兴趣的部分进行开发，建议优先选择高优先级的任务，比如添加更多的模型和数据结果。
 - 微信交流群：知识在讨论中发展，待定
-- 技术分享和讨论：输出倒逼输入，欢迎投稿，稿件会同步到本项目的docs目录和知乎专栏OpenNLP. 同时也欢迎大家积极的参与本项目的讨论https://github.com/AmbroseX/OpenTextClassification/discussions。
+- 技术分享和讨论：输出倒逼输入，欢迎投稿，稿件会同步到本项目的docs目录和知乎专栏OpenNLP. 同时也欢迎大家积极的参与本项目的讨论https://github.com/fast-llm/FastTextClassification/discussions。
 
 
 
@@ -122,7 +90,7 @@ OpenNLP计划的其他内容尚在筹备中，暂时只开源了本项目。欢�
 
 1.克隆本项目
 
-`git clone https://github.com/AmbroseX/OpenTextClassification.git`
+`git clone https://github.com/fast-llm/FastTextClassification.git`
 
 2.数据集下载和预处理
 
@@ -287,10 +255,4 @@ https://scikit-learn.org/stable/modules/model_evaluation.html#classification-met
 
 ## Starchart
 
-[![Star History Chart](https://api.star-history.com/svg?repos=AmbroseX/OpenTextClassification&type=Date)](https://star-history.com/#AmbroseX/OpenTextClassification&Date)
-
-## Contributors
-
-<a href="https://github.com/AmbroseX/OpenTextClassification/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=AmbroseX/OpenTextClassification" />
-</a>
+[![Star History Chart](https://api.star-history.com/svg?repos=fast-llm/FastTextClassification&type=Date)](https://star-history.com/#fast-llm/FastTextClassification&Date)
