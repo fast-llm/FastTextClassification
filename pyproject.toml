@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "opentextclassification"
+name = "fasttextclassification"
 version = "0.1.0"
 description = ""
 authors = ["AmbroseX <rongkangxiong@idea.edu.cn>"]

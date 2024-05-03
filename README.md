@@ -4,7 +4,7 @@
 </div>
 </br>
 
-<h1 align="center">OpenTextClassification</h1>
+<h1 align="center">FastTextClassification</h1>
 <div align="center">
   <a href="https://github.com/fast-llm/FastTextClassification">
     <img src="https://pic4.zhimg.com/80/v2-f63d74cf9859eea57b0a78c9da00c9f3_720w.webp" alt="Logo" height="210">
@@ -45,15 +45,15 @@
 
 - 2024/04/30: clone原项目进行再次开发
 
-- 2023/03/23：OpenTextClassification V0.0.1版正式开源，版本特性：
+- 2023/03/23：FastTextClassification V0.0.1版正式开源，版本特性：
   - 支持中英双语的文本分类
   - 支持多种文本分类模型：传统机器学习浅层模型、深度学习模型和transformers类模型
   - 支持多标签文本分类
   - 支持多种embedding方式：inner/outer/random
 
-## OpenTextClassification项目
+## FastTextClassification项目
 
-OpenTextClassification项目为OpenNLP计划的第一个正式的开源项目，旨在Open NLP for everyone！在以ChatGPT/GPT4为代表的LLMs时代，在被OpenAI卷死之前，做一点有意义的事情！未来有一天，等到GPT-X发布的时候，或许有人会说NLP不存在了，但是我们想证明有人曾来过！
+FastTextClassification项目为OpenNLP计划的第一个正式的开源项目，旨在Open NLP for everyone！在以ChatGPT/GPT4为代表的LLMs时代，在被OpenAI卷死之前，做一点有意义的事情！未来有一天，等到GPT-X发布的时候，或许有人会说NLP不存在了，但是我们想证明有人曾来过！
 
 ### 开发计划
 
@@ -76,7 +76,7 @@ OpenTextClassification项目为OpenNLP计划的第一个正式的开源项目，
 
 ### 加入我们
 
-OpenNLP计划的其他内容尚在筹备中，暂时只开源了本项目。欢迎大家积极参与OpenTextClassification的建设和讨论，一起变得更强！
+OpenNLP计划的其他内容尚在筹备中，暂时只开源了本项目。欢迎大家积极参与FastTextClassification的建设和讨论，一起变得更强！
 
 加入方式：
 
@@ -146,7 +146,7 @@ OpenNLP计划的其他内容尚在筹备中，暂时只开源了本项目。欢�
 
 ## 结果展示：持续更新中
 
-笔者提供了从浅到深再到多标签的详细实验结果，可供大家参考。但受限于时间和算力，很多实验可能未达到最优，望知悉！因此，非常欢迎大家积极贡献，补充相关实验、代码和新的模型等等，一起建设OpenTextClassification。
+笔者提供了从浅到深再到多标签的详细实验结果，可供大家参考。但受限于时间和算力，很多实验可能未达到最优，望知悉！因此，非常欢迎大家积极贡献，补充相关实验、代码和新的模型等等，一起建设FastTextClassification。
 
 暂时只提供部分汇总的结果，详细的实验结果及参数等我有空再补，比较多，需要一些时间整理。
 ### 1.传统浅层文本分类模型
@@ -256,3 +256,10 @@ https://scikit-learn.org/stable/modules/model_evaluation.html#classification-met
 ## Starchart
 
 [![Star History Chart](https://api.star-history.com/svg?repos=fast-llm/FastTextClassification&type=Date)](https://star-history.com/#fast-llm/FastTextClassification&Date)
+
+
+## 贡献者
+
+<a href="https://github.com/fast-llm/FastTextClassification/graphs/contributors">
+   <img src="https://contrib.rocks/image?repo=fast-llm/FastTextClassification" />
+</a>
