@@ -3,11 +3,8 @@ import os
 from typing import TYPE_CHECKING, Dict, Tuple
 
 import torch
-from peft import PeftModel
 from transformers import InfNanRemoveLogitsProcessor, LogitsProcessorList, PreTrainedModel
 from transformers.utils import (
-    SAFE_WEIGHTS_NAME,
-    WEIGHTS_NAME,
     is_torch_bf16_gpu_available,
     is_torch_cuda_available,
     is_torch_mps_available,
@@ -16,8 +13,14 @@ from transformers.utils import (
 )
 from transformers.utils.versions import require_version
 
-from .constants import V_HEAD_SAFE_WEIGHTS_NAME, V_HEAD_WEIGHTS_NAME
 from .logging import get_logger
+
+if TYPE_CHECKING:
+    from transformers import TrainerCallback
+    from hparams.data_args import DataArguments
+    from hparams.model_args import ModelArguments
+    from hparams.training_args import TrainingArguments
+
 
 _is_fp16_available = is_torch_npu_available() or is_torch_cuda_available()
 try:
