@@ -9,7 +9,7 @@ def main(data_path, save_path, train_file, val_file, test_file,
          seed=42, sep='\t', 
          label_col='label', 
          text_col='review'):
-    train_ratio, val_ratio, test_ratio = map(int, split_ratio.split())
+    train_ratio, val_ratio, test_ratio = map(int, split_ratio.split(' '))
     total_ratio = train_ratio + val_ratio + test_ratio
     
     df = pd.read_csv(data_path)
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str, help="Path to the input CSV file")
     parser.add_argument("--save_path", type=str, help="Path to save the output files")
     parser.add_argument("--train_file", type=str,default = 'train.txt', help="Name of the training file")
-    parser.add_argument("--val_file", type=str, default='val.txt', help="Name of the validation file")
+    parser.add_argument("--val_file", type=str, default='val.txt', help="Name of the devidation file")
     parser.add_argument("--test_file", type=str, default='test.txt', help="Name of the testing file")
     parser.add_argument("--split_ratio", type=str, default="8 1 1", 
                         help="Ratio of training validation testing data, also '0.9 0.1 0.1' is ok")
@@ -45,11 +45,9 @@ if __name__ == "__main__":
     parser.add_argument("--text_col", type=str, default="review", help="Name of the text column")
     args = parser.parse_args()
 
-    main(args.data_path, args.save_path, args.train_file, 
-         args.val_file, args.test_file, 
-         args.train_ratio, 
-         args.val_ratio, 
-         args.test_ratio, 
+    main(args.data_path, args.save_path, 
+         args.train_file, args.val_file, args.test_file, 
+         args.split_ratio, 
          args.seed, args.sep, 
          args.label_col, 
          args.text_col)
