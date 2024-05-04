@@ -1,8 +1,8 @@
-# #安装环境 opentext121
+# #安装环境 fasttext121
 # 分步执行注释里面的创建环境
 # conda deactivate
-# conda create -n opentext python=3.10 -y
-# conda activate opentext
+# conda create -n fasttext python=3.10 -y
+# conda activate fasttext
 
 pip install -U pip
 # cudatoolkit
