@@ -7,8 +7,10 @@
 @date: 2024/04/30 17:00:29
 @desc: 
 """
+from datetime import timedelta
 import json
 import os
+import time
 from typing import Dict, List
 
 def read_txt(file_path: str) -> str:
@@ -120,3 +122,24 @@ def get_dir_of_file(file_path: str) -> str:
     """
     directory_path = os.path.dirname(file_path)
     return directory_path
+
+def check_dir_exist(dir_path: str = "", create: bool = False) -> bool:
+    """
+    检查给定的路径是否存在，如果不存在，则创建对应的文件夹。
+    :param path: 要检查和创建的文件夹路径。
+    """
+    if not os.path.exists(dir_path):
+        if create:
+            os.makedirs(dir_path)
+            print(f"创建了文件夹: {dir_path}")
+            return True
+        return False
+    else:
+        print(f"文件夹已存在: {dir_path}")
+        return True
+
+def get_time_dif(start_time):
+    """获取已使用时间"""
+    end_time = time.time()
+    time_dif = end_time - start_time
+    return timedelta(seconds=int(round(time_dif)))
