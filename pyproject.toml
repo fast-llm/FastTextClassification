@@ -27,6 +27,8 @@ pydantic = "^2.7.1"
 fastapi = "^0.110.3"
 sse-starlette = "^2.1.0"
 matplotlib = "^3.8.4"
+datasets = "^2.19.0"
+accelerate = "^0.30.0"
 
 
 [build-system]

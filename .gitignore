@@ -139,3 +139,4 @@ data/*
 !data/dataset-example
 !data/dbpedia
 repos
+workspace/
