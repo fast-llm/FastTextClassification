@@ -13,11 +13,17 @@ from sklearn.metrics import multilabel_confusion_matrix
 
 from tools.utils import get_time_dif
 from tensorboardX import SummaryWriter
-from transformers import AdamW, get_constant_schedule_with_warmup, get_linear_schedule_with_warmup
+from torch.optim import AdamW  # 更改引用源为PyTorch
+from transformers import get_constant_schedule_with_warmup, get_linear_schedule_with_warmup
 
+from extras.logging import get_logger
+logger = get_logger(__name__)
 
 # 权重初始化，默认xavier
-def init_network(model, method='xavier', exclude='embedding', seed=123):
+def init_network(model, 
+                 method='xavier', 
+                 exclude='embedding', 
+                 seed=42):
     for name, w in model.named_parameters():
         if exclude not in name:
             if len(w.size()) < 2:
@@ -35,11 +41,34 @@ def init_network(model, method='xavier', exclude='embedding', seed=123):
                 pass
 
 
-def train(config, model, train_iter, dev_iter, test_iter, loss_fn=None, multi_label=False, cls_threshold=0,
+def train(config, 
+          model, 
+          train_iter, 
+          dev_iter, 
+          test_iter, 
+          loss_fn=None, 
+          multi_label=False, 
+          cls_threshold=0,
           eval_activate=None):
     start_time = time.time()
     model.train()
-    model.to(config.device)
+    # 设置要使用的GPU设备
+    if config.num_gpus == 0:
+        model.to("cpu")
+    elif config.num_gpus == 1:
+        # 设置要使用的GPU设备
+        device_id = int(config.device)
+        torch.cuda.set_device(device_id)
+        # 加载模型到指定的GPU设备上
+        model = model.cuda()
+    elif config.num_gpus > 1:
+        device_ids = [int(id) for id in config.device.split(',')]
+        for device_id in device_ids:
+            torch.cuda.set_device(device_id)
+        # 加载模型到指定的GPU设备上
+        model.to(device_ids[0])
+        model = nn.DataParallel(model, device_ids=device_ids)
+    
     no_decay = ['bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
         {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
@@ -64,7 +93,9 @@ def train(config, model, train_iter, dev_iter, test_iter, loss_fn=None, multi_la
         print('Epoch [{}/{}]'.format(epoch + 1, config.num_epochs))
         # scheduler.step() # 学习率衰减
         for i, (trains, labels) in enumerate(train_iter):
+            logger.info(f"trains step {i}")
             outputs = model(trains)
+            # logger.info(f"outputs:{outputs.shape}")
             model.zero_grad()
             if loss_fn == F.binary_cross_entropy_with_logits:
                 labels = labels.float()
