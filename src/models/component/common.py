@@ -2,7 +2,6 @@ import os
 from enum import Enum
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, List, Optional
-import torch
 import torch.nn as nn
 from transformers import BertModel, BertTokenizer, AutoModelForMaskedLM, AutoTokenizer
 
@@ -20,16 +19,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-def ernie_available():
-    # transformers4.22开始支持ernie
-    version = "4.22"
-    now_version = get_transformer_version()
-    return compare_versions(now_version,version)
 
-class ParallelMode(Enum):
-    DISTRIBUTED = "distributed"
-    SINGLE = "single"
-    NOT_PARALLEL = "not_parallel"
 
 @dataclass
 class MLPLayer:
@@ -83,9 +73,17 @@ class ModelConfig(object):
         self.bert_path = model_args.model_name_or_path
         # transformers4.22开始支持ernie
         if ernie_available():
-            self.tokenizer = AutoTokenizer.from_pretrained(self.bert_path)  
+            self.tokenizer = AutoTokenizer.from_pretrained(self.bert_path,
+                                                           truncation=True,  
+                                                           return_tensors="pt", 
+                                                           padding='max_length', 
+                                                           max_length=self.pad_size)  
         else:
-            self.tokenizer = BertTokenizer.from_pretrained(self.bert_path)
+            self.tokenizer = BertTokenizer.from_pretrained(self.bert_path,
+                                                           truncation=True,  
+                                                           return_tensors="pt", 
+                                                           padding='max_length', 
+                                                           max_length=self.pad_size)
         self.update_all_layers = training_args.update_all_layers
         logger.info(self.tokenizer)
         model_info = get_model_info(self.model_name)
@@ -93,6 +91,12 @@ class ModelConfig(object):
         self.mlp_layers = training_args.mlp_layers
         self.vocab = None
         self.n_vocab = None
+
+def ernie_available():
+    # transformers4.22开始支持ernie
+    version = "4.22"
+    now_version = get_transformer_version()
+    return compare_versions(now_version,version)
 
 def ernie_available():
     # transformers4.22开始支持ernie
