@@ -29,6 +29,7 @@ sse-starlette = "^2.1.0"
 matplotlib = "^3.8.4"
 datasets = "^2.19.0"
 accelerate = "^0.30.0"
+deepspeed = "0.14.0"
 
 
 [build-system]
