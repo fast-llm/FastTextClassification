@@ -16,7 +16,7 @@ from hparams.load_args import ModelConfig
 from hparams.model_args import ModelArguments
 from hparams.training_args import TrainingArguments
 
-from extras.logging import get_logger
+from extras.loggings import get_logger
 logger = get_logger(__name__)
 
 

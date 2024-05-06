@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 
-from extras.logging import get_logger
+from extras.loggings import get_logger
 from hparams.load_args import ModelConfig
 from models.component.common import MLPLayer
 logger = get_logger(__name__)
@@ -145,4 +145,4 @@ class DataArguments:
             self.do_lower_case = config_data.get_parameter("data").get('do_lower_case', None)
         if not self.multi_label:
             self.multi_label = config_data.get_parameter("data").get('multi_label', False)
-        logger.info(f"Training configuration: {config_data}")
+        logger.info(f"Training data configuration: {config_data}")
