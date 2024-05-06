@@ -17,8 +17,6 @@ class DatasetConfig:
     def __init__(self,
                  max_samples=None,
                  batch_size=32, 
-                 num_gpus=1, 
-                 device="0", 
                  multi_label=False,
                  num_classes=2, 
                  learning_rate=1e-3,
@@ -32,8 +30,6 @@ class DatasetConfig:
                  ):
         self.max_samples = max_samples
         self.batch_size = batch_size
-        self.num_gpus = num_gpus
-        self.device = device
         self.multi_label = multi_label
         self.num_classes = num_classes
         self.train_path = train_path
