@@ -18,6 +18,7 @@ class SchedulerType(ExplicitEnum):
     CONSTANT_WITH_WARMUP = "constant_with_warmup"
     INVERSE_SQRT = "inverse_sqrt"
     REDUCE_ON_PLATEAU = "reduce_lr_on_plateau"
+    ONE_CYCLE_LR = 'OneCycleLR'
 
 class LossFnType(ExplicitEnum):
     CROSS_ENTROPY = "CrossEntropyLoss"

@@ -35,7 +35,6 @@ class ColoredFormatter(logging.Formatter):
         # 根据日志级别选择颜色
         record_color = color_map.get(record.levelno, TerminalColor.RESET)
         # 让基类Formatter进行实际的格式化工作
-        # 让基类Formatter进行实际的格式化工作
         formatted_record = super().format(record)
         return f"{record_color}{formatted_record}{TerminalColor.RESET}"
 

@@ -14,7 +14,7 @@ training:
   warmup_ratio: 0.1                                   # 学习率预热比例
   dropout_rate: 0.1                                   # Dropout比率，用于防止过拟合
   threshold: 0.5                                      # 计算准确率的阈值
-  activation: "ReLU"                                  # 激活函数
+  activation: "GELU"                                  # 激活函数
   seed: 42                                            # 随机种子，用于确保实验的可复现性
 
 # 优化器配置
@@ -23,7 +23,7 @@ optimizer_settings:
   optimizer_type: "SGD"                               # 优化器类型
   # weight_init_method: "xavier_uniform"              # 优化器的权重初始化方法
   weight_decay: 0.0                                   # 权重衰减
-  momentum: 0.9                                       # SGD优化器的动量
+  momentum: 0.9                                       # SGD优化器的动量,0.9左右是最好的
   adam_epsilon: 1e-8                                  # Adam或AdamW优化器的epsilon值
   adam_beta1: 0.1                                     # Adam或AdamW优化器的beta1值
   adam_beta2: 0.999                                   # Adam或AdamW优化器的beta2值
@@ -40,11 +40,11 @@ model_parameters:
     - layer_type: "Dense"                             # 层的类型
       size: 1024                                       # 第一层的大小
       activation: "GELU"                              # 第一层的激活函数
-      dropout: 0.1                                    # 第一层的Dropout率
+      dropout: 0.2                                    # 第一层的Dropout率
     - layer_type: "Dense"                             # 层的类型
       size: 256                                       # 第二层的大小
       activation: "GELU"                              # 第二层的激活函数
-      dropout: 0.1                                    # 第二层的Dropout率
+      dropout: 0.2                                    # 第二层的Dropout率
 
 # 超参数搜索配置
 hyper_params:

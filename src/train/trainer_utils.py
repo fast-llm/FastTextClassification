@@ -7,12 +7,11 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
 import torch
 from torch.optim import Adam, SGD, AdamW, Adagrad
+from torch.optim.lr_scheduler import OneCycleLR
 import torch.nn as nn
 from transformers import Trainer
 from transformers.optimization import get_scheduler
-from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
-from transformers.trainer_pt_utils import get_parameter_names
-from transformers.utils.versions import require_version
+
 
 from extras.loggings import get_logger
 from hparams.data_args import DataArguments
@@ -63,7 +62,12 @@ def create_config(model_args: "ModelArguments",
         )
     elif 'bert' in model_name:
         from models.bert import Config
-        return None
+        return Config(
+            model_args = model_args,
+            data_args = data_args,
+            training_args = training_args
+        )
+    return None
 
 
 def create_model(config:ModelConfig) -> "PreTrainedModel":
@@ -79,9 +83,21 @@ def create_model(config:ModelConfig) -> "PreTrainedModel":
             hidden_size=config.hidden_size,
             mlp_layers_config=config.mlp_layers
         )
-    else:
-        raise ValueError("Model name or path is not specified.")
-    return model
+        return model
+    elif 'bert' in model_name:
+        from models.bert import Model
+        model = Model(
+            model_path = config.model_path,
+            update_all_layers = config.update_all_layers,
+            multi_class = config.multi_class,
+            multi_label= config.multi_label,
+            num_classes=config.num_classes,
+            hidden_size=config.hidden_size,
+            mlp_layers_config=config.mlp_layers
+        )
+        return model
+    raise ValueError("Model name or path is not specified.")
+    
 
 
 def create_loss_fn(loss_fn:str) -> "torch.nn.Module":
@@ -155,7 +171,7 @@ def create_custom_scheduler(
     training_args: "TrainingArguments",
     num_training_steps: int,
     optimizer: Optional["torch.optim.Optimizer"] = None,
-) -> None:
+) -> Optional["torch.optim.lr_scheduler._LRScheduler"]:
     if optimizer is not None:
         if training_args.lr_scheduler_type.lower() == "linear":
             return get_scheduler(
@@ -191,6 +207,23 @@ def create_custom_scheduler(
                 "constant",
                 optimizer=optimizer,
             )
+        elif training_args.lr_scheduler_type.lower() == "constant_with_warmup":
+            return get_scheduler(
+                "constant_with_warmup",
+                optimizer=optimizer,
+                num_warmup_steps=training_args.get_warmup_steps(num_training_steps),
+            )
+        elif training_args.lr_scheduler_type.lower() == "inverse_sqrt":
+            return get_scheduler(
+                "inverse_sqrt",
+                optimizer=optimizer,
+                num_warmup_steps=training_args.get_warmup_steps(num_training_steps),
+            )
+        elif training_args.lr_scheduler_type.lower() == "onecyclelr":
+            return OneCycleLR(optimizer=optimizer, 
+                              max_lr=25*training_args.learning_rate, 
+                              epochs=training_args.epochs, 
+                              steps_per_epoch=int(num_training_steps/training_args.epochs))
         else:
             raise ValueError(f"Unsupported scheduler type: {training_args.lr_scheduler_type}")
     else:

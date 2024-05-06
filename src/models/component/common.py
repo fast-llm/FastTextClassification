@@ -122,7 +122,9 @@ class BaseModel(nn.Module):
             for param in self.model.parameters():
                 param.requires_grad = True
         self.fc = build_mlp_layers(num_classes, hidden_size, mlp_layers_config)
-
+        self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax(dim=-1)
+        
     def forward(self, input, 
                 label: Optional[torch.Tensor]= None,
                 threshold: int=0.5):
@@ -134,17 +136,17 @@ class BaseModel(nn.Module):
                                token_type_ids=token_type_ids)
         out = self.fc(output.pooler_output)
         
+        
         if self.multi_class and self.multi_label:
             raise ValueError("multi_class and multi_label cannot be True at the same time.")
         elif self.multi_class:
-            out = torch.softmax(out,-1)
-            pred = pred.argmax(dim=-1)
-            
+            # out = self.softmax(out)
+            pred = out.argmax(dim=-1)
         elif self.multi_label:
-            out = torch.sigmoid(out)
+            # out = self.sigmoid(out)
             pred = (out > threshold).int()
         else:
-            out = torch.sigmoid(out)
+            # out = self.sigmoid(out)
             pred = (out > threshold).int()  # 将预测值转换为0或1
         
         
