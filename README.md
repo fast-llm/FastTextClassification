@@ -43,9 +43,11 @@
 
 ## 最新讯息
 
-- 2024/05/06: ernie支持多卡、slurm等分布式训练
+- 2024/05/06: 
+  - ernie支持多卡、slurm等分布式训练
+  - 支持配置文件改变mlp的层数、预训练模型等
+  - 支持二分类、多分类、多标签分类
 - 2024/04/30: clone原项目进行再次开发
-
 - 2023/03/23：FastTextClassification V0.0.1版正式开源，版本特性：
   - 支持中英双语的文本分类
   - 支持多种文本分类模型：传统机器学习浅层模型、深度学习模型和transformers类模型
@@ -90,16 +92,17 @@
 
 经过测试的开发环境如下，仅供参考，差不多的环境应该都可以运行。
 
-- python：3.6/3.7
-- torch：1.6.0
-- transformers：4.18.0
-- torchtext：0.7.0
-- scikit-learn： 0.24.2
-- tensorboardX：2.6
-- nltk：3.6.7
-- numpy：1.18.5
-- pandas：1.1.5
+- python：3.10
+- torch：2.3.0
+- transformers：4.39.1
 
+```shell
+conda create -n fasttext python=3.10
+conda activate fasttext
+
+pip install poetry
+poetry install
+```
 
 
 根据自己的需要选择模块运行，详见下一节。
@@ -112,9 +115,11 @@
 
 ` python run.py`
 
+
 2.运行传统浅层机器学习模型做文本分类
 
 `python run_shallow.py`
+
 
 3.运行DNN/transformers类模型做多标签文本分类
 
