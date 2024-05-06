@@ -1,6 +1,6 @@
 import yaml
 import json
-from extras.logging import get_logger
+from extras.loggings import get_logger
 
 logger = get_logger(__name__)
 

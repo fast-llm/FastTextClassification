@@ -5,7 +5,7 @@ from typing import List
 
 from transformers.trainer import TRAINER_STATE_NAME
 
-from .logging import get_logger
+from .loggings import get_logger
 from .packages import is_matplotlib_available
 
 
