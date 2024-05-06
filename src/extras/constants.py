@@ -1,9 +1,17 @@
+import os
 from collections import namedtuple, OrderedDict, defaultdict
 from enum import Enum
 from typing import Dict, Optional
 
 
+ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 LOG_FILE_NAME = "trainer_log.jsonl"
+
+V_HEAD_WEIGHTS_NAME = "value_head.bin"
+
+V_HEAD_SAFE_WEIGHTS_NAME = "value_head.safetensors"
+
 
 ModelInfo = namedtuple("ModelInfo", ["simple_name", "template", "hidden_size", "link", "download", "description"])
 
@@ -272,6 +280,7 @@ register_model_group(
 )
 
 if __name__ == "__main__":
+    print(ROOT_PATH)
     print(model_info["ernie-3.0-base-zh"])
     a = get_model_info("ernie-3.0-base-zh")
     print(a)
