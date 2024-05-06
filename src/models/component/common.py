@@ -7,7 +7,7 @@ from transformers import BertModel, BertTokenizer, AutoModelForMaskedLM, AutoTok
 
 from extras.constants import get_model_info
 from extras.packages import compare_versions, get_transformer_version
-from extras.logging import get_logger
+from extras.loggings import get_logger
 
 if TYPE_CHECKING:
     from transformers import TrainerCallback

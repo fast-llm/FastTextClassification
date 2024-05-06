@@ -14,7 +14,7 @@ from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from transformers.trainer_pt_utils import get_parameter_names
 from transformers.utils.versions import require_version
 
-from ..extras.logging import get_logger
+from ..extras.loggings import get_logger
 from ..hparams.training_args import  TrainingArguments
 from ..hparams.model_args import ModelArguments
 
