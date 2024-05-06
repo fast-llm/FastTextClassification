@@ -13,6 +13,10 @@ import os
 import time
 from typing import Dict, List
 
+from extras.loggings import get_logger
+
+logger = get_logger(__name__)
+
 def read_txt(file_path: str) -> str:
     """
     读取txt文件内容的函数
@@ -63,7 +67,7 @@ def read_json(file_path: str) -> dict: # type: ignore
            data = json.load(file)
         return data
     except Exception as e:
-        print(f"读取JSON文件失败：{file_path}，错误信息：{e}")
+        logger.info(f"读取JSON文件失败：{file_path}，错误信息：{e}")
         raise BaseException(f"读取JSON文件失败：{file_path}，错误信息：{e}")
 
 def read_jsonl(file_path: str) -> List[Dict]:
@@ -84,7 +88,7 @@ def read_jsonl(file_path: str) -> List[Dict]:
                 data.append(json_obj)  # 添加到列表中
         return data
     except Exception as e:
-        print(f"读取JSONL文件失败：{file_path}，错误信息：{e}")
+        logger.error(f"读取JSONL文件失败：{file_path}，错误信息：{e}")
         raise BaseException(f"读取JSONL文件失败：{file_path}，错误信息：{e}")
 
 def export_json(data: dict, file_path: str):
@@ -96,9 +100,9 @@ def export_json(data: dict, file_path: str):
     try:
         with open(file_path, 'w', encoding='utf-8') as file:
             json.dump(data, file, ensure_ascii=False, indent=4)
-        print(f"数据成功导出到JSON文件：{file_path}")
+        logger.info(f"数据成功导出到JSON文件：{file_path}")
     except Exception as e:
-        print(f"导出JSON文件失败：{file_path}，错误信息：{e}")
+        logger.error(f"导出JSON文件失败：{file_path}，错误信息：{e}")
         raise Exception(f"导出JSON文件失败：{file_path}，错误信息：{e}")
 
 
@@ -131,11 +135,10 @@ def check_dir_exist(dir_path: str = "", create: bool = False) -> bool:
     if not os.path.exists(dir_path):
         if create:
             os.makedirs(dir_path)
-            print(f"创建了文件夹: {dir_path}")
+            logger.info(f"创建了文件夹: {dir_path}")
             return True
         return False
     else:
-        print(f"文件夹已存在: {dir_path}")
         return True
 
 def get_time_dif(start_time):
