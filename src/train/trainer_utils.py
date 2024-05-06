@@ -39,6 +39,15 @@ class SchedulerType(ExplicitEnum):
     INVERSE_SQRT = "inverse_sqrt"
     REDUCE_ON_PLATEAU = "reduce_lr_on_plateau"
 
+class LossFnType(ExplicitEnum):
+    CROSS_ENTROPY = "CrossEntropyLoss"
+    BCE = "BCELoss"
+    BCE_WITH_LOGITS = "BCEWithLogitsLoss"
+    NLL = "NLLLoss"
+    POISSON_NLL = "PoissonNLLLoss"
+    KL_DIV = "KLDivLoss"
+
+
 class DummyOptimizer(torch.optim.Optimizer):
     r"""
     A dummy optimizer used for the GaLore algorithm.
@@ -79,6 +88,37 @@ def init_network(model,
                 nn.init.constant_(w, 0)
             else:
                 pass
+
+def create_model(
+    model_args: "ModelArguments",
+    training_args: "TrainingArguments",
+) -> "PreTrainedModel":
+    model = None
+    if model_args.model_name_or_path is not None:
+        model = model_args.model_class.from_pretrained(
+            model_args.model_name_or_path,
+            config=model_args.config,
+        )
+    else:
+        raise ValueError("Model name or path is not specified.")
+    return model
+
+
+def create_loss_fn(training_args: "TrainingArguments"):
+    if training_args.loss_fn.lower() == LossFnType.CROSS_ENTROPY.lower():
+        loss_fn = nn.CrossEntropyLoss()
+    if training_args.loss_fn.lower() == LossFnType.BCE.lower():
+        loss_fn = nn.BCELoss()
+    if training_args.loss_fn.lower() == LossFnType.BCE_WITH_LOGITS.lower():
+        loss_fn = nn.BCEWithLogitsLoss()
+    if training_args.loss_fn.lower() == LossFnType.NLL.lower():
+        loss_fn = nn.NLLLoss()
+    if training_args.loss_fn.lower() == LossFnType.POISSON_NLL.lower():
+        loss_fn = nn.PoissonNLLLoss()
+    if training_args.loss_fn.lower() == LossFnType.KL_DIV.lower():
+        loss_fn = nn.KLDivLoss()
+    
+    return loss_fn
 
 def _create_optimizer(
     model: "PreTrainedModel",
@@ -155,14 +195,43 @@ def create_custom_scheduler(
         for param in optimizer_dict.keys():
             param.register_post_accumulate_grad_hook(scheduler_hook)
 
-def get_activations(inputs, activate_func:str=None):
-    if activate_func == 'sigmoid':
+def get_activations(inputs:torch.tensor, activate_func:str=None):
+    if activate_func is None:
+        return inputs
+    elif activate_func == 'relu':
+        inputs = torch.relu(inputs)
+    elif activate_func == 'leaky_relu':
+        inputs = torch.leaky_relu(inputs)
+    elif activate_func == 'sigmoid':
         inputs = torch.sigmoid(inputs)
     elif activate_func == 'softmax':
         inputs = torch.softmax(inputs)
     elif activate_func == 'tanh':
         inputs = torch.tanh(inputs)
     return inputs
+
+def calculate_num_training_steps(dataset_size: int, 
+                                 batch_size: int, 
+                                 epochs: int) -> int:
+    """
+    计算总的训练步骤数。
+
+    参数:
+        dataset_size (int): 数据集中的样本总数。
+        batch_size (int): 每个批次的样本数。
+        epochs (int): 训练的总轮数。
+
+    返回:
+        int: 总的训练步骤数。
+    """
+    steps_per_epoch = dataset_size // batch_size  # 每个epoch的步骤数
+    if dataset_size % batch_size != 0:
+        # 如果有余数，意味着最后一个批次的样本数少于batch_size，但仍需一个额外的步骤来处理它们
+        steps_per_epoch += 1
+    total_steps = steps_per_epoch * epochs  # 总步骤数
+    return total_steps
+
+
 
 def setup_seed(seed: int):
     torch.manual_seed(seed)
