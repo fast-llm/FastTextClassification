@@ -8,7 +8,7 @@ from transformers import TrainerCallback
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR, has_length
 
 from .constants import LOG_FILE_NAME
-from .logging import get_logger
+from .loggings import get_logger
 
 if TYPE_CHECKING:
     from transformers import TrainerControl, TrainerState, TrainingArguments
