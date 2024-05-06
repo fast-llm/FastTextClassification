@@ -63,9 +63,7 @@ def get_train_args(args: Optional[Dict[str, Any]] = None) -> _TRAIN_CLS:
     model_args.model_max_length = data_args.cutoff_len
     # Log on each process the small summary:
     logger.info(
-        "Process rank: {}, device: {}, num_gpu: {}, distributed training: {}, compute dtype: {}".format(
-            training_args.local_rank,
-            training_args.device,
+        "Process num_gpu: {}, distributed training: {}, compute dtype: {}".format(
             training_args.num_gpus,
             training_args.parallel_mode.value == "distributed",
             str(model_args.compute_dtype),

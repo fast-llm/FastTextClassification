@@ -62,6 +62,10 @@ class DataArguments:
         default=None,
         metadata={"help": "Whether to lower case the input text. True for uncased models, False for cased models."},
     )
+    multi_class: bool = field(
+        default=None,
+        metadata={"help": "Whether to use multi-class classification."},
+    )
     multi_label: bool = field(
         default=None,
         metadata={"help": "Whether to use multi-label classification."},
@@ -113,6 +117,10 @@ class DataArguments:
             raise ValueError("`max_samples` is incompatible with `streaming`.")
 
         self._load_config()
+        
+        if self.multi_class and self.multi_label:
+            raise ValueError("Only one of `multi_class` or `multi_label` can be set to True.")
+        
     
     def _load_config(self):
         logger.info(f"Loading training configuration from {self.data_config_path}")
@@ -141,8 +149,11 @@ class DataArguments:
             self.SEP = config_data.get_parameter("data").get('SEP', None)
         if not self.cutoff_len:
             self.cutoff_len = config_data.get_parameter("data").get('cutoff_len', None)
+        self.pad_size = self.cutoff_len
         if not self.do_lower_case:
             self.do_lower_case = config_data.get_parameter("data").get('do_lower_case', None)
+        if not self.multi_class:
+            self.multi_class = config_data.get_parameter("data").get('multi_class', False)
         if not self.multi_label:
             self.multi_label = config_data.get_parameter("data").get('multi_label', False)
         logger.info(f"Training data configuration: {config_data}")

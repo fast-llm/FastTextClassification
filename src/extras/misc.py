@@ -1,8 +1,9 @@
 import gc
 import os
 from typing import TYPE_CHECKING, Dict, Tuple
-
 import torch
+from GPUtil import showUtilization as gpu_usage
+from numba import cuda
 from transformers import InfNanRemoveLogitsProcessor, LogitsProcessorList, PreTrainedModel
 from transformers.utils import (
     is_torch_bf16_gpu_available,
@@ -13,7 +14,7 @@ from transformers.utils import (
 )
 from transformers.utils.versions import require_version
 
-from .logging import get_logger
+from extras.loggings import get_logger
 
 if TYPE_CHECKING:
     from transformers import TrainerCallback
@@ -111,6 +112,30 @@ def get_logits_processor() -> "LogitsProcessorList":
     logits_processor.append(InfNanRemoveLogitsProcessor())
     return logits_processor
 
+def torch_gc() -> None:
+    r"""
+    Collects GPU memory.
+    """
+    logger.info("Collects GPU memory.")
+    gpu_usage()
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+    logger.info("GPU Usage after emptying the cache")
+    gpu_usage()
+
+def free_gpu_cache():
+    logger.info("Initial GPU Usage")
+    gpu_usage()
+    # torch.cuda.empty_cache()
+    cuda.select_device(0)
+    cuda.close()
+    cuda.select_device(0)
+    logger.info("GPU Usage after emptying the cache")
+    gpu_usage()
+
+
 def infer_optim_dtype(model_dtype: torch.dtype) -> torch.dtype:
     r"""
     Infers the optimal dtype according to the model_dtype and device compatibility.
@@ -134,14 +159,7 @@ def is_path_available(path: os.PathLike) -> bool:
     else:
         return False
 
-def torch_gc() -> None:
-    r"""
-    Collects GPU memory.
-    """
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+
 
 def try_download_model_from_ms(model_args: "ModelArguments") -> str:
     if not use_modelscope() or os.path.exists(model_args.model_name_or_path):
@@ -157,3 +175,7 @@ def try_download_model_from_ms(model_args: "ModelArguments") -> str:
 
 def use_modelscope() -> bool:
     return bool(int(os.environ.get("USE_MODELSCOPE_HUB", "0")))
+
+
+if __name__ == "__main__":
+    logger.info(get_device_count())    

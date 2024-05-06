@@ -4,21 +4,22 @@ training:
   use_word: false                                     # 
   epochs: 50                                          # 训练的总周期数
   require_improvement: 1000                           # 早停的步数
-  per_device_train_batch_size: 10                     # 每批训练的样本数
+  per_device_train_batch_size: 30                     # 每批训练的样本数
   per_device_eval_batch_size: 10                      # 每批测试的样本数
-  update_all_layers: false                            # 只更新mlp
+  update_all_layers: true                             # 更新预训练权重
   lr_scheduler_type: "cosine"                         # linear,cosine,polynomial,constant...
-  learning_rate: 0.01                                 # 优化器的学习率
+  learning_rate: 5e-5                                 # 优化器的学习率
   warmup_steps: 100                                   # 学习率预热步数
   warmup_ratio: 0.1                                   # 学习率预热比例
   dropout_rate: 0.5                                   # Dropout比率，用于防止过拟合
+  threshold: 0.5                                      # 计算准确率的阈值
   activation: "ReLU"                                  # 激活函数
   seed: 42                                            # 随机种子，用于确保实验的可复现性
 
 # 优化器配置
 optimizer_settings:
   loss_fn: "CrossEntropyLoss"                         # 损失函数
-  optimizer_type: "Adam"                                   # 优化器类型
+  optimizer_type: "SGD"                               # 优化器类型
   # weight_init_method: "xavier_uniform"              # 优化器的权重初始化方法
   weight_decay: 0.0                                   # 权重衰减
   momentum: 0.1                                       # SGD优化器的动量
@@ -27,6 +28,7 @@ optimizer_settings:
   adam_beta2: 0.999                                   # Adam或AdamW优化器的beta2值
   initial_accumulator_value: 0.1                      # Adagrad优化器的初始累加器值
   lr_decay: 0.0                                       # Adagrad学习率衰减
+  power: 0.9                                          # 学习率多项式衰减的幂
   max_grad_norm: 1.0                                  # 梯度剪裁的最大梯度范数
   gradient_accumulation_steps: 1                      # 梯度累积步骤
 
@@ -35,13 +37,13 @@ model_parameters:
   num_classes: 2                                      # 分类问题的类别数
   mlp_layers:
     - layer_type: "Dense"                             # 层的类型
-      size: 512                                       # 第一层的大小
-      activation: "ReLU"                              # 第一层的激活函数
-      dropout: 0.2                                    # 第一层的Dropout率
+      size: 1024                                       # 第一层的大小
+      activation: "GELU"                              # 第一层的激活函数
+      dropout: 0.1                                    # 第一层的Dropout率
     - layer_type: "Dense"                             # 层的类型
-      size: 128                                       # 第二层的大小
-      activation: "ReLU"                              # 第二层的激活函数
-      dropout: 0.2                                    # 第二层的Dropout率
+      size: 256                                       # 第二层的大小
+      activation: "GELU"                              # 第二层的激活函数
+      dropout: 0.1                                    # 第二层的Dropout率
 
 # 超参数搜索配置
 hyper_params:
@@ -51,7 +53,7 @@ hyper_params:
   search_metric: "loss"                         # 超参数搜索的评分指标
   gamma: 0.25                                      # 超参数搜索的gamma值
   random_state: 42                                 # 超参数搜索的随机种子
-  optimizer_options: ["Adam", "SGD"]                  # 优化器的可选类型
+  optimizer_options: ["Adam", "AdamW", "SGD"]                  # 优化器的可选类型
   learning_rate_bounds: [1e-5, 1e-3]                  # 学习率的搜索范围
   batch_size_options: [16, 32, 64]                    # 批量大小的可选值
   regularization_strengths: [0, 1e-4, 1e-3]                     # L2正则化强度的可选值
@@ -70,9 +72,10 @@ data:
   class_file: "class.txt"         # 类别表
   vocab_file: "vocab.txt"         # 自定义词汇表
   SEP: "\t"                       # 分割符号
-  cutoff_len: 128                 # 截断长度
+  cutoff_len: 768                 # 截断长度
   do_lower_case: false            # 是否将输入文本转换为小写
-  multi_label: true              # 是否是多标签分类
+  multi_class: false              # 是否是多类分类
+  multi_label: true               # 是否是多标签分类
 
 # 输出目录配置
 output:

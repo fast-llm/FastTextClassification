@@ -1,11 +1,17 @@
+import os
 import json
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
+import math
 
+from extras.constants import ROOT_PATH
+from extras.misc import get_current_device, get_device_count
+from train.training_types import LossFnType, SchedulerType,ParallelMode
+from utils import check_dir_exist
 from .load_args import ModelConfig
-from models.component.common import ParallelMode, MLPLayer
+from models.component.common import MLPLayer
 
-from extras.logging import get_logger
+from extras.loggings import get_logger
 logger = get_logger(__name__)
 
 
@@ -15,17 +21,17 @@ class TrainingArguments:
     r"""
     Arguments pertaining to which techniques we are going to fine-tuning with.
     """
-
+    # 必须传入的参数
     train_config_path: str = field(metadata={"help": "Path to the configuration file."},)
-    output_dir: str = field(metadata={"help": "output directory for the model and the training logs."})
-    log_dir: str = field(default = None, metadata={"help": "output directory for the model and the training logs."})
-    local_rank: str = field(default = None,metadata={"help": "local_rank for distributed training on gpus."})
-    device: str = field(default = None,metadata={"help": "device for training. cpu, cuda, xpu, npu"})
-    num_gpus : int = field(default = None,metadata={"help": "number of gpus to use."})
+    output_dir: str = field(default = None ,metadata={"help": "output directory for the model and the training logs."})
 
+    # local_rank: str = field(default = None,metadata={"help": "local_rank for distributed training on gpus."})
+    
+    # 
     max_steps: int = field(default=None,metadata={"help": "Maximum number of training steps."},)
     plot_loss: bool = field(default=False,metadata={"help": "Whether or not to save the training loss curves."})
     should_log: bool = field(default=True,metadata={"help": "Whether or not to log the training process."})
+    
     
     # 训练配置
     lang: str = field(default=None, metadata={"help": "data embedding language, en, cn, multi"})
@@ -34,18 +40,45 @@ class TrainingArguments:
     require_improvement: int = field(default=None,metadata={"help": "Number of steps to wait for improvement."})
     per_device_train_batch_size: int = field(default=None,metadata={"help": "Batch size per GPU/TPU core/CPU for training."})
     per_device_eval_batch_size: int = field(default=None,metadata={"help": "Batch size per GPU/TPU core/CPU for evaluation."})
+    
     update_all_layers: bool = field(default=None,metadata={"help": "if update all layers"})
-    optimizer: str = field(default=None,metadata={"help": "Optimizer to use for training."})
-    lr_scheduler_type: str = field(default=None,metadata={"help": "Type of learning rate scheduler."})
+    
+    lr_scheduler_type: Union[SchedulerType, str] = field(
+        default="linear",
+        metadata={"help": "The scheduler type to use."},
+    )
+    lr_scheduler_kwargs: Optional[Dict] = field(
+        default_factory=dict,
+        metadata={
+            "help": (
+                "Extra parameters for the lr_scheduler such as {'num_cycles': 1} for the cosine with hard restarts"
+            )
+        },
+    )
+    warmup_ratio: float = field(
+        default=0.0, metadata={"help": "Linear warmup over warmup_ratio fraction of total steps."}
+    )
+    warmup_steps: int = field(default=0, metadata={"help": "Linear warmup over warmup_steps."})
+
     learning_rate: float = field(default=None,metadata={"help": "The initial learning rate for Adam."})
-    warmup_proportion: float = field(default=None,metadata={"help": "Proportion of training to perform linear learning rate warmup for."})
+    warmup_ratio: float = field(default=None,metadata={"help": "Proportion of training to perform linear learning rate warmup for."})
     dropout_rate: float = field(default=None,metadata={"help": "Dropout rate for the model."})
     activation: str = field(default=None,metadata={"help": "Activation function for the model."})
     seed: int = field(default=None,metadata={"help": "Random seed for initialization."})
+    threshold: float = field(default=None,metadata={"help": "threshold for acc"})
+    
     
     # 优化器配置
-    epsilon: float = field(default=None,metadata={"help": "Epsilon for the Adam optimizer."})
+    loss_fn: str = field(default=None,metadata={"help": "Loss function to use for training."})
+    optimizer_type: str = field(default=None,metadata={"help": "Optimizer type to use for training."})
     weight_decay: float = field(default=None,metadata={"help": "Weight decay to apply."})
+    adam_epsilon: float = field(default=None,metadata={"help": "Epsilon for the Adam optimizer."})
+    adam_beta1: float = field(default=None,metadata={"help": "Beta1 for the Adam optimizer."})
+    adam_beta2: float = field(default=None,metadata={"help": "Beta2 for the Adam optimizer."})
+    momentum: float = field(default=None,metadata={"help": "Momentum for the optimizer."})
+    initial_accumulator_value: float = field(default=None,metadata={"help": "Initial accumulator value for the optimizer."})
+    lr_decay: float = field(default=None,metadata={"help": "Learning rate decay."})
+    power: float = field(default=None,metadata={"help": "Power for the poly scheduler."})
     max_grad_norm: float = field(default=None,metadata={"help": "Max gradient norm."})
     gradient_accumulation_steps: int = field(default=None,metadata={"help": "Number of updates steps to accumulate before performing a backward/update pass."})
     
@@ -69,11 +102,13 @@ class TrainingArguments:
     weight_initialization: List[str] = field(default=None,metadata={"help": "Weight initialization functions."})
     
     # evaluation
+    
     log_dir: str = field(default=None,metadata={"help": "Directory to save the logs."})
     logging_steps: int = field(default=None,metadata={"help": "Number of steps to log the training loss."})
     eval_steps: int = field(default=None,metadata={"help": "Number of steps to evaluate the model."})
     eval_metric: str = field(default=None,metadata={"help": "Evaluation metric."})
-    eval_batch_size: int = field(default=None,metadata={"help": "Batch size for evaluation."})
+    
+    
     # save
     save_steps: int = field(default=None,metadata={"help": "Number of steps to save the model."})
     save_total_limit: int = field(default=None,metadata={"help": "Total number of checkpoints to save."})
@@ -90,8 +125,19 @@ class TrainingArguments:
             if isinstance(arg, str):
                 return [item.strip() for item in arg.split(",")]
             return arg
-        self.parallel_mode = self._get_parallel_mode()
+        
         self._load_config()
+        if self.warmup_ratio < 0 or self.warmup_ratio > 1:
+            raise ValueError("warmup_ratio must lie in range [0,1]")
+        elif self.warmup_ratio > 0 and self.warmup_steps > 0:
+            logger.info(
+                "Both warmup_ratio and warmup_steps given, "
+                "warmup_steps will override any effect of warmup_ratio"
+                " during training"
+            )
+        self.parallel_mode = self._get_parallel_mode()
+    
+
     
     def _get_parallel_mode(self):
         if self.num_gpus > 1:
@@ -106,8 +152,10 @@ class TrainingArguments:
         config_data = ModelConfig(self.train_config_path)
         logger.info(f"Training configuration: {config_data}")
         
-        if not self.log_dir:
-            self.log_dir = config_data.get_parameter('output').get('log_dir', 'log')
+        # 显卡配置
+        self.num_gpus = get_device_count()
+        # self.device = get_current_device()
+        
         if not self.lang:
             self.lang = config_data.get_parameter("training").get('lang', 'cn')
         if not self.use_word:
@@ -129,32 +177,75 @@ class TrainingArguments:
             self.per_device_train_batch_size = config_data.get_parameter("training").get('per_device_train_batch_size', 4)
         if not self.per_device_eval_batch_size:
             self.per_device_eval_batch_size = config_data.get_parameter("training").get('per_device_eval_batch_size', 4)
+        
         if not self.update_all_layers:
             self.update_all_layers = config_data.get_parameter("training").get('update_all_layers', False)
-        if not self.optimizer:
-            self.optimizer = config_data.get_parameter("training").get('optimizer', self.optimizer)
         if not self.lr_scheduler_type:
-            self.lr_scheduler_type = config_data.get_parameter("training").get('lr_scheduler_type', self.lr_scheduler_type)
+            self.lr_scheduler_type = config_data.get_parameter("training").get('lr_scheduler_type', 'linear')
         if not self.learning_rate:
-            self.learning_rate = config_data.get_parameter("training").get('learning_rate', self.learning_rate)
-        if not self.warmup_proportion:
-            self.warmup_proportion = config_data.get_parameter("training").get('warmup_proportion', self.warmup_proportion)
+            self.learning_rate = float(config_data.get_parameter("training").get('learning_rate', self.learning_rate))
+        if not self.warmup_steps:
+            self.warmup_steps = config_data.get_parameter("training").get('warmup_steps', self.warmup_steps)
+        if not self.warmup_ratio:
+            self.warmup_ratio = config_data.get_parameter("training").get('warmup_ratio', self.warmup_ratio)
         if not self.dropout_rate:
             self.dropout_rate = config_data.get_parameter("training").get('dropout_rate', 0.1)
         if not self.activation:
             self.activation = config_data.get_parameter("training").get('activation', self.activation)
         if not self.seed:
             self.seed = config_data.get_parameter("training").get('seed', 42)
+        if not self.threshold:
+            self.threshold = config_data.get_parameter("training").get('threshold', 0.5)
         
-        if not self.epsilon:
-            self.epsilon = config_data.get_parameter("optimizer_settings").get('epsilon', self.epsilon)    
+        if not self.loss_fn:
+            self.loss_fn = config_data.get_parameter("optimizer_settings").get('loss_fn', "CrossEntropyLoss")
+                
+            
+        if not self.optimizer_type:
+            self.optimizer_type = config_data.get_parameter("optimizer_settings").get('optimizer_type', self.optimizer_type)
         if not self.weight_decay:
             self.weight_decay = config_data.get_parameter("optimizer_settings").get('weight_decay', self.weight_decay)
+        if not self.momentum:
+            self.momentum = config_data.get_parameter("optimizer_settings").get('momentum', self.momentum)
+        if not self.adam_epsilon:
+            self.adam_epsilon = float(config_data.get_parameter("optimizer_settings").get('adam_epsilon', 1e-8))    
+        if not self.adam_beta1:
+            self.adam_beta1 = config_data.get_parameter("optimizer_settings").get('adam_beta1', self.adam_beta1)
+        if not self.adam_beta2:
+            self.adam_beta2 = config_data.get_parameter("optimizer_settings").get('adam_beta2', self.adam_beta2)
+        if not self.initial_accumulator_value:
+            self.initial_accumulator_value = config_data.get_parameter("optimizer_settings").get('initial_accumulator_value', self.initial_accumulator_value)
+        if not self.lr_decay:
+            self.lr_decay = config_data.get_parameter("optimizer_settings").get('lr_decay', self.lr_decay)
+        if not self.power:
+            self.power = config_data.get_parameter("optimizer_settings").get('power', self.power)
+        
         if not self.max_grad_norm:
             self.max_grad_norm = config_data.get_parameter("optimizer_settings").get('max_grad_norm', self.max_grad_norm)
         if not self.gradient_accumulation_steps:
-            self.gradient_accumulation_steps = config_data.get_parameter("optimizer_settings").get('gradient_accumulation_steps', self.gradient_accumulation_steps)
+            self.gradient_accumulation_steps = config_data.get_parameter("optimizer_settings").get('gradient_accumulation_steps', 1)
 
+        
+        # 输出目录
+        if self.output_dir is None:
+            self.output_dir = os.path.join(ROOT_PATH,'output')
+        if self.log_dir is None:
+            self.log_dir = config_data.get_parameter('output').get('log_dir', 'log')
+            self.log_dir = os.path.join(self.output_dir, self.log_dir)
+            check_dir_exist(self.log_dir, create=True)
+        
+        # evaluation
+        if not self.logging_steps:
+            self.logging_steps = config_data.get_parameter('output').get('logging_steps', 5)
+        
+        if not self.eval_steps:
+            self.eval_steps = config_data.get_parameter('output').get('eval_steps', 50)
+        
+        # eval_metric: str = field(default=None,metadata={"help": "Evaluation metric."})
+        
+        # save 
+        
+        
         if not self.enable_search:
             self.enable_search = config_data.get_parameter("hyper_params").get('enable_search', self.enable_search)
         if not self.search_strategy:
@@ -190,6 +281,15 @@ class TrainingArguments:
         if not self.early_stop_metric:
             self.early_stop_metric = config_data.get_parameter("early_stopping").get('early_stop_metric', self.early_stop_metric)
 
+    def get_warmup_steps(self, num_training_steps: int):
+        """
+        Get number of steps used for a linear warmup.
+        """
+        warmup_steps = (
+            self.warmup_steps if self.warmup_steps > 0 else math.ceil(num_training_steps * self.warmup_ratio)
+        )
+        return warmup_steps
+    
     def save_to_json(self, json_path: str):
         r"""Saves the content of this instance in JSON format inside `json_path`."""
         json_string = json.dumps(asdict(self), indent=4, sort_keys=True) + "\n"

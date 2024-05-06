@@ -5,63 +5,69 @@ from tqdm import tqdm
 import time
 from datetime import timedelta
 import csv
-from tools.utils_multi_label import get_multi_hot_label
+from torch.utils.data import DataLoader, Dataset
+from data.common import DatasetConfig
+from data.utils_multi import get_multi_hot_label, get_multi_list_label
 
-from extras.logging import get_logger
+from extras.loggings import get_logger
+from models.component.common import ModelConfig
 logger = get_logger(__name__)
 
 
 PAD, CLS = '[PAD]', '[CLS]'  # padding符号, bert中综合信息符号, SEP并非必须
 
 
-def build_dataset(config,
-                  n_samples=None, 
-                  sep="\t", 
-                  multi_label=False):
-    def load_dataset(path, pad_size=32):
-        contents = []
+class TransformerDataset(Dataset):
+    def __init__(self, data):
+        self.data = data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        input = (self.data[idx][0],self.data[idx][1],self.data[idx][2])
+        label = self.data[idx][3]
+        return input, label
+
+
+def build_dataset(config: "ModelConfig") -> tuple:
+    def load_dataset(path:str, tag:str)-> list[tuple]:
+        batch_contents = []
+        flag = 0
         with open(path, 'r', encoding='UTF-8', newline='') as f:
-            f = csv.reader(f, delimiter=sep)
+            logger.info(f"loading {tag} dataset from \n{path}")
+            f = csv.reader(f, delimiter=config.SEP)
             for line in tqdm(f):
-                if n_samples is not None and f.line_num > n_samples:
+                if config.max_samples is not None and f.line_num > config.max_samples:
                     break
                 if len(line) != 2:
                     logger.error(f"行格式错误: {line}")
                     continue
                 content, label = line
-                # if not lin:
-                #     continue
-                # if len(lin.split('\t')) == 2 and lin.split('\t')[1].isdigit():
-                #     content, label = lin.split('\t')
-                # elif len(lin.split(',')) == 2 and lin.split(',')[1].isdigit():
-                #     content, label = lin.split(',')
-                # else:
-                #     print("line sep error, support tab or comma.")
-                #     print(lin)
-                #     print(lin.split('\t'))
-                #     print(lin.split(','))
-                #     break
-                token = config.tokenizer.tokenize(content)
-                token = [CLS] + token  # +cls这一步对GPT等模型来说不合适：TODO
-                seq_len = len(token)
-                mask = []
-                token_ids = config.tokenizer.convert_tokens_to_ids(token)
+                if flag<2:
+                    logger.info(f"content: {content}\nlabel: {label}")
+                    flag += 1
+                # 转换数据为list
+                label = get_multi_list_label(label=label,
+                                             multi_class=config.multi_class,
+                                             multi_label=config.multi_label)
+                
+                inputs = config.tokenizer(content,
+                                            truncation=True,  
+                                            return_tensors="pt", 
+                                            padding='max_length', 
+                                            max_length=config.pad_size)
+                batch_contents.append((inputs['input_ids'].squeeze(0),
+                                inputs['attention_mask'].squeeze(0),
+                                inputs['token_type_ids'].squeeze(0),
+                                label)
+                                )
 
-                if pad_size:
-                    if len(token) < pad_size:
-                        mask = [1] * len(token_ids) + [0] * (pad_size - len(token))
-                        token_ids += ([0] * (pad_size - len(token)))  # 这里应该填充pad id而非0：TODO
-                    else:
-                        mask = [1] * pad_size
-                        token_ids = token_ids[:pad_size]
-                        seq_len = pad_size
-                contents.append(
-                    (token_ids, int(label) if not multi_label else list(map(int, label.split(','))), seq_len, mask))
-        return contents
+        return batch_contents
 
-    train = load_dataset(config.train_path, config.pad_size)
-    val = load_dataset(config.val_path, config.pad_size)
-    test = load_dataset(config.test_path, config.pad_size)
+    train = load_dataset(config.train_path, tag='training')
+    val = load_dataset(config.val_path, tag = 'validation')
+    test = load_dataset(config.test_path, tag = 'test')
     return train, val, test
 
 
@@ -69,8 +75,7 @@ class DatasetIterater(object):
     def __init__(self, 
                  batches: list, 
                  batch_size: int,
-                 num_gpus: int,
-                 device: str, 
+                 multi_class:bool,
                  multi_label:bool, 
                  num_classes: int):
         self.batch_size = batch_size
@@ -78,40 +83,19 @@ class DatasetIterater(object):
         self.n_batches = len(batches) // batch_size
         self.residue = len(batches) % self.batch_size != 0  # 检查是否有剩余数据没有填满一个batch
         self.index = 0
-        self.num_gpus = num_gpus
-        self.device_ids = None
+        self.multi_class = multi_class
         self.multi_label = multi_label
         self.num_classes = num_classes
-        self.init_device(device=device)
 
-    def init_device(self,device:str):
-        if self.num_gpus == 0:
-            self.device = 'cpu'
-        elif self.num_gpus >= 1:
-            if ',' in device:  # 检查是否有多个GPU设备
-                self.device_ids = list(map(int, device.split(',')))
-                self.device = f"cuda:{self.device_ids[0]}"  # 选用第一个GPU作为主设备
-            else:
-                self.device = f"cuda:{device}"
-    
-    def _to_tensor(self, datas):
-        x = torch.LongTensor([_[0] for _ in datas]).to(self.device)
-        if self.multi_label:
-            labels = [_[1] for _ in datas]
-            y = get_multi_hot_label(labels, self.num_classes).to(self.device)
-        else:
-            y = torch.LongTensor([_[1] for _ in datas]).to(self.device)
-        seq_len = torch.LongTensor([_[2] for _ in datas]).to(self.device)
-        mask = torch.LongTensor([_[3] for _ in datas]).to(self.device)
-
-        if self.num_gpus > 1:
-            # 使用DataParallel分配到多个GPU
-            x = nn.DataParallel(x, device_ids=self.device_ids)
-            y = nn.DataParallel(y, device_ids=self.device_ids)
-            seq_len = nn.DataParallel(seq_len, device_ids=self.device_ids)
-            mask = nn.DataParallel(mask, device_ids=self.device_ids)
-
-        return (x, seq_len, mask), y
+    def _to_tensor(self, data:list)->tuple[tuple,torch.Tensor]:
+        batch_input_ids = torch.LongTensor([_[0].tolist() for _ in data])
+        batch_att_mask = torch.LongTensor([_[1].tolist() for _ in data])
+        batch_token_type_ids = torch.LongTensor([_[2].tolist() for _ in data])
+        
+        labels = [_[3] for _ in data]
+        y = get_multi_hot_label(labels, self.num_classes, dtype=torch.float)
+        
+        return (batch_input_ids, batch_att_mask, batch_token_type_ids), y
 
 
     def __next__(self):
@@ -141,11 +125,10 @@ class DatasetIterater(object):
             return self.n_batches
 
 
-def build_iterator(dataset, config):
+def build_iterator(dataset, config: "ModelConfig"):
     iter = DatasetIterater(dataset, 
                            config.batch_size,
-                           config.num_gpus,
-                           config.device, 
+                           config.multi_class,
                            config.multi_label, 
                            config.num_classes)
     return iter

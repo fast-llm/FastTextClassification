@@ -2,7 +2,7 @@ import os
 import random
 import numpy as np
 from enum import Enum
-from transformers.utils import ExplicitEnum
+
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
 import torch
@@ -14,9 +14,12 @@ from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from transformers.trainer_pt_utils import get_parameter_names
 from transformers.utils.versions import require_version
 
-from ..extras.loggings import get_logger
-from ..hparams.training_args import  TrainingArguments
-from ..hparams.model_args import ModelArguments
+from extras.loggings import get_logger
+from hparams.data_args import DataArguments
+from hparams.training_args import  TrainingArguments
+from hparams.model_args import ModelArguments
+from models.component.common import ModelConfig
+from train.training_types import LossFnType
 
 
 if TYPE_CHECKING:
@@ -24,49 +27,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-class ParallelMode(Enum):
-    DISTRIBUTED = "distributed"
-    SINGLE = "single"
-    NOT_PARALLEL = "not_parallel"
-
-class SchedulerType(ExplicitEnum):
-    LINEAR = "linear"
-    COSINE = "cosine"
-    COSINE_WITH_RESTARTS = "cosine_with_restarts"
-    POLYNOMIAL = "polynomial"
-    CONSTANT = "constant"
-    CONSTANT_WITH_WARMUP = "constant_with_warmup"
-    INVERSE_SQRT = "inverse_sqrt"
-    REDUCE_ON_PLATEAU = "reduce_lr_on_plateau"
-
-class LossFnType(ExplicitEnum):
-    CROSS_ENTROPY = "CrossEntropyLoss"
-    BCE = "BCELoss"
-    BCE_WITH_LOGITS = "BCEWithLogitsLoss"
-    NLL = "NLLLoss"
-    POISSON_NLL = "PoissonNLLLoss"
-    KL_DIV = "KLDivLoss"
-
-
-class DummyOptimizer(torch.optim.Optimizer):
-    r"""
-    A dummy optimizer used for the GaLore algorithm.
-    """
-
-    def __init__(
-        self, 
-        lr: float = 1e-3, 
-        optimizer_dict: Optional[Dict["torch.nn.Parameter", "torch.optim.Optimizer"]] = None
-    ) -> None:
-        dummy_tensor = torch.randn(1, 1)
-        self.optimizer_dict = optimizer_dict
-        super().__init__([dummy_tensor], {"lr": lr})
-
-    def zero_grad(self, set_to_none: bool = True) -> None:
-        pass
-
-    def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
-        pass
 
 # 权重初始化，默认xavier
 def init_network(model, 
@@ -89,35 +49,56 @@ def init_network(model,
             else:
                 pass
 
-def create_model(
-    model_args: "ModelArguments",
-    training_args: "TrainingArguments",
-) -> "PreTrainedModel":
-    model = None
-    if model_args.model_name_or_path is not None:
-        model = model_args.model_class.from_pretrained(
-            model_args.model_name_or_path,
-            config=model_args.config,
+def create_config(model_args: "ModelArguments",
+                 data_args: "DataArguments",
+                 training_args: "TrainingArguments"
+                  ) -> ModelConfig:
+    model_name = model_args.model_name.lower()
+    if 'ernie' in model_name :
+        from models.ernie import Config
+        return Config(
+            model_args = model_args,
+            data_args = data_args,
+            training_args = training_args
+        )
+    elif 'bert' in model_name:
+        from models.bert import Config
+        return None
+
+
+def create_model(config:ModelConfig) -> "PreTrainedModel":
+    model_name = config.model_name.lower()
+    if 'ernie' in model_name :
+        from models.ernie import Model
+        model = Model(
+            model_path = config.model_path,
+            update_all_layers = config.update_all_layers,
+            multi_class = config.multi_class,
+            multi_label= config.multi_label,
+            num_classes=config.num_classes,
+            hidden_size=config.hidden_size,
+            mlp_layers_config=config.mlp_layers
         )
     else:
         raise ValueError("Model name or path is not specified.")
     return model
 
 
-def create_loss_fn(training_args: "TrainingArguments"):
-    if training_args.loss_fn.lower() == LossFnType.CROSS_ENTROPY.lower():
+def create_loss_fn(loss_fn:str) -> "torch.nn.Module":
+    if loss_fn.lower() == LossFnType.CROSS_ENTROPY.lower():
         loss_fn = nn.CrossEntropyLoss()
-    if training_args.loss_fn.lower() == LossFnType.BCE.lower():
+    elif loss_fn.lower() == LossFnType.BCE.lower():
         loss_fn = nn.BCELoss()
-    if training_args.loss_fn.lower() == LossFnType.BCE_WITH_LOGITS.lower():
+    elif loss_fn.lower() == LossFnType.BCE_WITH_LOGITS.lower():
         loss_fn = nn.BCEWithLogitsLoss()
-    if training_args.loss_fn.lower() == LossFnType.NLL.lower():
+    elif loss_fn.lower() == LossFnType.NLL.lower():
         loss_fn = nn.NLLLoss()
-    if training_args.loss_fn.lower() == LossFnType.POISSON_NLL.lower():
+    elif loss_fn.lower() == LossFnType.POISSON_NLL.lower():
         loss_fn = nn.PoissonNLLLoss()
-    if training_args.loss_fn.lower() == LossFnType.KL_DIV.lower():
+    elif loss_fn.lower() == LossFnType.KL_DIV.lower():
         loss_fn = nn.KLDivLoss()
-    
+    else:
+        raise ValueError(f"Unsupported loss function: {loss_fn}")
     return loss_fn
 
 def _create_optimizer(
@@ -152,7 +133,6 @@ def _create_optimizer(
                             initial_accumulator_value=training_args.initial_accumulator_value,
                             eps=training_args.adam_epsilon,
                             weight_decay=training_args.weight_decay,
-                            initial_accumulator_value=training_args.initial_accumulator_value
                             )
     else:
         raise ValueError(f"Unsupported optimizer type: {training_args.optimizer_type}")
@@ -176,24 +156,45 @@ def create_custom_scheduler(
     num_training_steps: int,
     optimizer: Optional["torch.optim.Optimizer"] = None,
 ) -> None:
-    if optimizer is not None and isinstance(optimizer, DummyOptimizer):
-        optimizer_dict = optimizer.optimizer_dict
-        scheduler_dict: Dict["torch.nn.Parameter", "torch.optim.lr_scheduler.LRScheduler"] = {}
-
-        for param in optimizer_dict.keys():
-            scheduler_dict[param] = get_scheduler(
-                training_args.lr_scheduler_type,
-                optimizer=optimizer_dict[param],
-                num_warmup_steps=training_args.get_warmup_steps(num_training_steps) * 2,
-                num_training_steps=num_training_steps * 2,
+    if optimizer is not None:
+        if training_args.lr_scheduler_type.lower() == "linear":
+            return get_scheduler(
+                "linear",
+                optimizer=optimizer,
+                num_warmup_steps=training_args.get_warmup_steps(num_training_steps),
+                num_training_steps=num_training_steps,
             )
-
-        def scheduler_hook(param: "torch.nn.Parameter"):
-            if param.grad is not None:
-                scheduler_dict[param].step()
-
-        for param in optimizer_dict.keys():
-            param.register_post_accumulate_grad_hook(scheduler_hook)
+        elif training_args.lr_scheduler_type.lower() == "cosine":
+            return get_scheduler(
+                "cosine",
+                optimizer=optimizer,
+                num_warmup_steps=training_args.get_warmup_steps(num_training_steps),
+                num_training_steps=num_training_steps,
+            )
+        elif training_args.lr_scheduler_type.lower() == "cosine_with_restarts":
+            return get_scheduler(
+                "cosine_with_restarts",
+                optimizer=optimizer,
+                num_warmup_steps=training_args.get_warmup_steps(num_training_steps),
+                num_training_steps=num_training_steps,
+            )
+        elif training_args.lr_scheduler_type.lower() == "polynomial":
+            return get_scheduler(
+                "polynomial",
+                optimizer=optimizer,
+                num_warmup_steps=training_args.get_warmup_steps(num_training_steps),
+                num_training_steps=num_training_steps,
+                power=training_args.power,
+            )
+        elif training_args.lr_scheduler_type.lower() == "constant":
+            return get_scheduler(
+                "constant",
+                optimizer=optimizer,
+            )
+        else:
+            raise ValueError(f"Unsupported scheduler type: {training_args.lr_scheduler_type}")
+    else:
+        return None
 
 def get_activations(inputs:torch.tensor, activate_func:str=None):
     if activate_func is None:
@@ -210,8 +211,9 @@ def get_activations(inputs:torch.tensor, activate_func:str=None):
         inputs = torch.tanh(inputs)
     return inputs
 
-def calculate_num_training_steps(dataset_size: int, 
-                                 batch_size: int, 
+def calculate_num_training_steps(dataset_size: int,
+                                 num_gpus:int, 
+                                 per_device_train_batch_size: int, 
                                  epochs: int) -> int:
     """
     计算总的训练步骤数。
@@ -224,13 +226,97 @@ def calculate_num_training_steps(dataset_size: int,
     返回:
         int: 总的训练步骤数。
     """
-    steps_per_epoch = dataset_size // batch_size  # 每个epoch的步骤数
-    if dataset_size % batch_size != 0:
+    steps_per_epoch = dataset_size // (per_device_train_batch_size*num_gpus)  # 每个epoch的步骤数
+    if dataset_size % per_device_train_batch_size != 0:
         # 如果有余数，意味着最后一个批次的样本数少于batch_size，但仍需一个额外的步骤来处理它们
         steps_per_epoch += 1
     total_steps = steps_per_epoch * epochs  # 总步骤数
     return total_steps
 
+def calculate_binary_accuracy(pred: torch.Tensor, 
+                              label: torch.Tensor,
+                              threshold: float = 0.5
+                              ) -> tuple[torch.Tensor,int]:
+    """_summary_
+    Args:
+        pred (torch.Tensor): _description_
+        label (torch.Tensor): _description_
+    Returns:
+        float: _description_
+    """
+    label = label.to(pred.device)
+    label = (label > threshold).int()
+    pred = (pred > threshold).int()  # 将预测值转换为0或1
+    correct = (pred == label).sum().item()  # 计算预测正确的样本数
+    return correct, correct, len(label)
+
+def calculate_multi_class_accuracy(pred: torch.Tensor, 
+                                   label: torch.Tensor,
+                                   threshold: float = 0.5
+                                   ) -> tuple[torch.Tensor,int]:
+    """_summary_
+    Args:
+        pred (torch.Tensor): _description_
+        label (torch.Tensor): _description_
+    Returns:
+        float: _description_
+    """
+    _ , s = pred.size()
+    if s>1:
+        pred = pred.argmax(dim=-1)  # 获取预测结果中概率最高的类别
+        label = label.to(pred.device)
+        label = label.argmax(dim=-1)
+        correct = (pred == label).sum().item()  # 计算预测正确的样本数
+    else:
+        label = label.to(pred.device)
+        label = (label > threshold).int()
+        pred = (pred > threshold).int()  # 将预测值转换为0或1
+        correct = (pred == label).sum().item()  # 计算预测正确的样本数
+    return correct, correct, len(label)
+
+def calculate_multi_label_accuracy(pred: torch.Tensor, 
+                                   label: torch.Tensor,
+                                   threshold: float = 0.5
+                                   ) -> tuple[torch.Tensor,int]:
+    if threshold < 0 or threshold > 1:
+        raise ValueError("threshold must be in 0-1")
+    label = label.to(pred.device)
+    label = (label > threshold).int()
+    pred = (pred > threshold).int()  # 将预测值转换为0或1
+    correct_all = (pred == label).all(dim=1).sum().item()  # 计算所有标签都预测正确的样本数
+    correct = (pred == label).sum().item()  # 计算有标签预测正确的样本数
+    total = len(label)  # 总样本数
+    return correct, correct_all, total
+
+
+#计算准确率
+def calculate_accuracy(pred: torch.tensor,
+                       label: torch.tensor,
+                       threshold:float = 0.5,
+                       multi_class: bool = False,
+                       multi_label: bool = False):
+    """_summary_
+
+    Args:
+        pred (torch.tensor): _description_ batch_size * num_class
+        label (torch.tensor): _description_ batch_size * num_class
+        multi_class (bool, optional): _description_. Defaults to False.
+        multi_label (bool, optional): _description_. Defaults to False.
+
+    Raises:
+        ValueError: _description_
+
+    Returns:
+        _type_: _description_
+    """
+    if multi_class and multi_label:
+        raise ValueError("multi_class and multi_label cannot be True at the same time.")
+    elif multi_class:
+        return calculate_multi_class_accuracy(pred, label)
+    elif multi_label:
+        return calculate_multi_label_accuracy(pred, label, threshold)
+    else:
+        return calculate_binary_accuracy(pred, label)
 
 
 def setup_seed(seed: int):
@@ -241,3 +327,43 @@ def setup_seed(seed: int):
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
     os.environ['PYTHONHASHSEED'] = str(seed)  # 为了禁止hash随机化，使得实验可复现。
+
+
+if __name__ == "__main__":
+    x = torch.tensor([[0.9, 0.8, 0.1, 0.8], 
+                      [0.1, 0.6, 0.2, 0.7]]).to('cuda:0')
+    y = torch.tensor([[1, 0, 0, 0], 
+                      [0, 1, 0, 0]],dtype=torch.float)
+    correct, correct_all, total = calculate_accuracy(x, y,multi_class=True)
+    logger.info(f"{correct}, {correct_all}, {total}")
+    
+    correct, correct_all, total = calculate_accuracy(x, y,
+                                                     multi_class=False,
+                                                     multi_label=True)
+    logger.info(f"{correct}, {correct_all}, {total}")
+    
+    x = torch.tensor([[0.9, 0.8, 0.1], 
+                      [0.1, 0.6, 0.2]]).to('cuda:0')
+    y = torch.tensor([[1, 0, 0], 
+                      [0, 1, 0]],dtype=torch.float)
+    correct, correct_all, total = calculate_accuracy(x, y,multi_class=True)
+    logger.info(f"{correct}, {correct_all}, {total}")
+    
+    correct, correct_all, total = calculate_accuracy(x, y,
+                                                     multi_class=False,
+                                                     multi_label=True)
+    logger.info(f"{correct}, {correct_all}, {total}")
+    
+    
+    x = torch.tensor([[0.9], 
+                      [0.1],
+                      [0.2],
+                      [0.3]
+                      ]).to('cuda:0')
+    y = torch.tensor([[1], 
+                      [0],
+                      [1],
+                      [1]
+                      ],dtype=torch.float)
+    correct, correct_all, total = calculate_accuracy(x, y, multi_class=True)
+    logger.info(f"{correct}, {correct_all}, {total}")

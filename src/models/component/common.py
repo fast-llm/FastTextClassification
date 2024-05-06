@@ -3,7 +3,8 @@ from enum import Enum
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, List, Optional
 import torch.nn as nn
-from transformers import BertModel, BertTokenizer, AutoModelForMaskedLM, AutoTokenizer
+import torch
+from transformers import AutoModel, BertTokenizer, AutoTokenizer
 
 from extras.constants import get_model_info
 from extras.packages import compare_versions, get_transformer_version
@@ -59,27 +60,34 @@ class ModelConfig(object):
                                        data_args.vocab_file)
         self.save_folder = training_args.output_dir
         self.save_path = self.save_folder + self.model_name + '.ckpt'  # 模型训练结果
-        self.log_path = os.path.join(self.save_folder,training_args.log_dir,self.model_name)
+        self.log_path = training_args.log_dir
         self.num_gpus = training_args.num_gpus
-        self.device = training_args.device # 设备
+
 
         self.require_improvement = training_args.require_improvement  # 若超过 default 1000 batch效果还没提升，则提前结束训练
-        self.multi_label = False
-        self.num_classes = len(self.class_list)  # 类别数
+        
+        self.max_samples = data_args.max_samples
+        self.multi_class = data_args.multi_class
+        self.multi_label = data_args.multi_label
+        self.num_classes = training_args.num_classes  # 类别数
+        
         self.num_epochs = training_args.epochs  # epoch数
         self.batch_size = training_args.per_device_train_batch_size  # mini-batch大小
         self.pad_size = data_args.cutoff_len  # 每句话处理成的长度(短填长切)
         self.learning_rate = training_args.learning_rate  # 学习率
-        self.bert_path = model_args.model_name_or_path
+        self.model_path = model_args.model_name_or_path
+        
+        self.SEP = data_args.SEP
+        
         # transformers4.22开始支持ernie
         if ernie_available():
-            self.tokenizer = AutoTokenizer.from_pretrained(self.bert_path,
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_path,
                                                            truncation=True,  
                                                            return_tensors="pt", 
                                                            padding='max_length', 
                                                            max_length=self.pad_size)  
         else:
-            self.tokenizer = BertTokenizer.from_pretrained(self.bert_path,
+            self.tokenizer = BertTokenizer.from_pretrained(self.model_path,
                                                            truncation=True,  
                                                            return_tensors="pt", 
                                                            padding='max_length', 
@@ -91,6 +99,60 @@ class ModelConfig(object):
         self.mlp_layers = training_args.mlp_layers
         self.vocab = None
         self.n_vocab = None
+        
+        
+
+class BaseModel(nn.Module):
+    def __init__(self, 
+                 model_path: str,
+                 update_all_layers: bool,
+                 multi_class: bool,
+                 multi_label: bool,
+                 num_classes: int,
+                 hidden_size: int,
+                 mlp_layers_config: List[MLPLayer]):
+        super(BaseModel, self).__init__()
+        self.multi_class = multi_class
+        self.multi_label = multi_label
+        self.model = AutoModel.from_pretrained(model_path)
+        if not update_all_layers:
+            for param in self.model.parameters():
+                param.requires_grad = False
+        else:
+            for param in self.model.parameters():
+                param.requires_grad = True
+        self.fc = build_mlp_layers(num_classes, hidden_size, mlp_layers_config)
+
+    def forward(self, input, 
+                label: Optional[torch.Tensor]= None,
+                threshold: int=0.5):
+        input_ids = input[0]
+        attention_mask = input[1]
+        token_type_ids = input[2]
+        output = self.model(input_ids=input_ids,
+                               attention_mask=attention_mask,
+                               token_type_ids=token_type_ids)
+        out = self.fc(output.pooler_output)
+        
+        if self.multi_class and self.multi_label:
+            raise ValueError("multi_class and multi_label cannot be True at the same time.")
+        elif self.multi_class:
+            out = torch.softmax(out,-1)
+            pred = pred.argmax(dim=-1)
+            
+        elif self.multi_label:
+            out = torch.sigmoid(out)
+            pred = (out > threshold).int()
+        else:
+            out = torch.sigmoid(out)
+            pred = (out > threshold).int()  # 将预测值转换为0或1
+        
+        
+        if label is None:  # 直接输出概率值作为预测结果
+            return out, None
+        else:   # 输出概率值和
+            return out, pred
+
 
 def ernie_available():
     # transformers4.22开始支持ernie
@@ -138,6 +200,7 @@ def build_mlp_layers(num_classes:int,
     # 组合所有层为Sequential模型
     return nn.Sequential(*mlp_layers)
 
+
 if __name__ == "__main__":
     mlp_layers_config = [
         MLPLayer(
@@ -156,3 +219,28 @@ if __name__ == "__main__":
 
     mlp_model = build_mlp_layers(2,100,mlp_layers_config)
     print(mlp_model)
+    
+    sequence = "一直觉得金桥不错，虽然房间有些暗，但是配套设施很好，特别是有厨房着一定，对于带着孩子来往的人很方便。就是挨着火车轨道，早上晚上会有隆隆的火车声，有些吵，房间隔音一般吧。"
+
+
+    model_path = '/platform_tech/xiongrongkang/models/ernie-3.0-base-zh'
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    print("Original sequence: ",sequence)
+    output = tokenizer(sequence,
+                    truncation=True,  
+                    return_tensors="pt", 
+                    padding='max_length', 
+                    max_length=768)
+
+    model = BaseModel(
+        model_path=model_path,
+        update_all_layers=True,
+        multi_class = True,
+        multi_label = False,
+        num_classes=2,
+        hidden_size=768,
+        mlp_layers_config=mlp_layers_config
+    )
+    pred = model((output['input_ids'],  output['attention_mask'], output['token_type_ids'],))
+    print(pred)
