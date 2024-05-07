@@ -24,8 +24,8 @@ def main(data_path:str, save_path:str, train_file:str, val_file:str, test_file:s
      df['formatted'] = df[text_col] + sep + df[label_col].astype(str)
 
      # 切分数据集，假设训练集60%，验证集20%，测试集20%
-     train, temp = train_test_split(df, test_size=train_ratio/total_ratio, random_state=seed)  # 先分出60%的训练数据
-     val, test = train_test_split(temp, test_size=(val_ratio)/(val_ratio+test_ratio), random_state=seed)  # 将剩下的数据分为验证和测试数据
+     train, temp = train_test_split(df, test_size=(1-train_ratio/total_ratio), random_state=seed)  # 先分出60%的训练数据
+     val, test = train_test_split(temp, test_size=(test_ratio)/(val_ratio+test_ratio), random_state=seed)  # 将剩下的数据分为验证和测试数据
      
      class_labels = list(string.ascii_uppercase)  # A-Z 字母列表
      data_class = pd.DataFrame({'class': range(num_class)})
