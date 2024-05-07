@@ -129,9 +129,10 @@ def free_gpu_cache():
     logger.info("Initial GPU Usage")
     gpu_usage()
     # torch.cuda.empty_cache()
-    cuda.select_device(0)
-    cuda.close()
-    cuda.select_device(0)
+    if torch.cuda.is_available():
+        cuda.select_device(0)
+        cuda.close()
+        cuda.select_device(0)
     logger.info("GPU Usage after emptying the cache")
     gpu_usage()
 
