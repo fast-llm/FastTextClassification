@@ -96,7 +96,14 @@ class DataArguments:
         default=None,
         metadata={"help": "The number of processes to use for the pre-processing."},
     )
-    
+    shuffle: Optional[bool] = field(
+        default = None,
+        metadata={"help": "shuffle data"}
+    )
+    drop_last: Optional[bool] = field(
+        default = None,
+        metadata={"help": "drop last data"}
+    )
     ignore_pad_token_for_loss: bool = field(
         default=True,
         metadata={
@@ -132,6 +139,10 @@ class DataArguments:
                 self.max_samples = None
         if not self.processing_num_workers:
             self.processing_num_workers = config_data.get_parameter("data").get("processing_num_workers", None)
+        if not self.shuffle:
+            self.shuffle = config_data.get_parameter("data").get("shuffle", True)
+        if not self.drop_last:
+            self.drop_last = config_data.get_parameter("data").get("drop_last", False)
         if not self.streaming:
             self.streaming = config_data.get_parameter("data").get('streaming', False)
         
