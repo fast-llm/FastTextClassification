@@ -62,8 +62,9 @@ class ModelConfig(object):
         self.save_path = self.save_folder + self.model_name + '.ckpt'  # 模型训练结果
         self.log_path = training_args.log_dir
         self.num_gpus = training_args.num_gpus
-
-
+        self.num_workers = data_args.processing_num_workers
+        self.shuffle = data_args.shuffle
+        self.drop_last = data_args.drop_last
         self.require_improvement = training_args.require_improvement  # 若超过 default 1000 batch效果还没提升，则提前结束训练
         
         self.max_samples = data_args.max_samples
@@ -72,6 +73,8 @@ class ModelConfig(object):
         self.num_classes = training_args.num_classes  # 类别数
         
         self.num_epochs = training_args.epochs  # epoch数
+        self.per_device_train_batch_size = training_args.per_device_train_batch_size
+        self.per_device_eval_batch_size = training_args.per_device_eval_batch_size
         self.batch_size = training_args.per_device_train_batch_size  # mini-batch大小
         self.pad_size = data_args.cutoff_len  # 每句话处理成的长度(短填长切)
         self.learning_rate = training_args.learning_rate  # 学习率
@@ -85,13 +88,15 @@ class ModelConfig(object):
                                                            truncation=True,  
                                                            return_tensors="pt", 
                                                            padding='max_length', 
-                                                           max_length=self.pad_size)  
+                                                           max_length=self.pad_size
+                                                           )  
         else:
             self.tokenizer = BertTokenizer.from_pretrained(self.model_path,
                                                            truncation=True,  
                                                            return_tensors="pt", 
                                                            padding='max_length', 
-                                                           max_length=self.pad_size)
+                                                           max_length=self.pad_size
+                                                           )
         self.update_all_layers = training_args.update_all_layers
         logger.info(self.tokenizer)
         model_info = get_model_info(self.model_name)
