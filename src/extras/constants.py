@@ -6,6 +6,23 @@ from typing import Dict, Optional
 
 ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
+
+# Name of the files used for checkpointing
+TRAINING_ARGS_NAME = "training_args.bin"
+
+TRAINER_STATE_NAME = "trainer_state.json"
+
+OPTIMIZER_NAME = "optimizer.pt"
+
+OPTIMIZER_NAME_BIN = "optimizer.bin"
+
+SCHEDULER_NAME = "scheduler.pt"
+
+SCALER_NAME = "scaler.pt"
+
+FSDP_MODEL_NAME = "pytorch_model_fsdp"
+
 LOG_FILE_NAME = "trainer_log.jsonl"
 
 V_HEAD_WEIGHTS_NAME = "value_head.bin"
@@ -45,7 +62,8 @@ def get_model_info(name: str) -> ModelInfo:
             raise Exception(f"Model {name} not found")
     except Exception as e:
         raise Exception(f"Model {name} not found") from e
-    
+
+# google bert
 register_model_group(
     models={
         "bert-base-uncased": {
@@ -98,6 +116,112 @@ register_model_group(
     description="cased是大小写敏感, uncased是大小写不敏感"
 )
 
+# microsoft deberta
+
+register_model_group(
+    models={
+        "deberta-v3-base": {
+            DownloadSource.DEFAULT: "microsoft/deberta-v3-base",
+            DownloadSource.MODELSCOPE: "microsoft/deberta-v3-base",
+        }
+    },
+    simple_name="deberta-v3",
+    template="bert",
+    hidden_size=768,
+    link='',
+    description="""
+    """
+)
+
+## chinese-roberta系列
+
+register_model_group(
+    models={
+        "chinese-roberta-wwm-ext": {
+            DownloadSource.DEFAULT: "hfl/chinese-roberta-wwm-ext",
+            DownloadSource.MODELSCOPE: "hfl/chinese-roberta-wwm-ext",
+        }
+    },
+    simple_name="wwm-ext",
+    template="bert",
+    hidden_size=768,
+    link='https://github.com/ymcui/Chinese-BERT-wwm',
+    description="""
+    We carried out extensive experiments on ten Chinese NLP tasks to evaluate the created Chinese pre-trained language models as well as the proposed MacBERT. 
+    Experimental results show that MacBERT could achieve state-of-the-art performances on many NLP tasks, 
+    and we also ablate details with several findings that may help future research. We open-source our pre-trained language models for further facilitating our research community
+    """
+)
+
+register_model_group(
+    models={
+        "chinese-macbert-base": {
+            DownloadSource.DEFAULT: "hfl/chinese-macbert-base",
+            DownloadSource.MODELSCOPE: "hfl/chinese-macbert-base",
+        }
+    },
+    simple_name="macbert-base",
+    template="bert",
+    hidden_size=768,
+    link='https://github.com/ymcui/Chinese-BERT-wwm',
+    description="""
+    MacBERT is an improved BERT with novel MLM as correction pre-training task,
+    which mitigates the discrepancy of pre-training and fine-tuning.
+    Instead of masking with [MASK] token, which never appears in the ﬁne-tuning stage, 
+    we propose to use similar words for the masking purpose.
+    A similar word is obtained by using Synonyms toolkit (Wang and Hu, 2017), 
+    which is based on word2vec (Mikolov et al., 2013) similarity calculations. 
+    If an N-gram is selected to mask, we will ﬁnd similar words individually.
+    In rare cases, when there is no similar word, we will degrade to use random word replacement.
+    """
+)
+
+
+
+register_model_group(
+    models={
+        "chinese-roberta-wwm-ext-large": {
+            DownloadSource.DEFAULT: "hfl/chinese-roberta-wwm-ext-large",
+            DownloadSource.MODELSCOPE: "hfl/chinese-roberta-wwm-ext-large",
+        }
+    },
+    simple_name="wwm-ext-large",
+    template="bert",
+    hidden_size=768,
+    link='https://github.com/ymcui/Chinese-BERT-wwm',
+    description=''
+)
+
+
+## albert系列
+
+register_model_group(
+    models={
+        "albert-base-v1": {
+            DownloadSource.DEFAULT: "google-bert/albert-base-v1",
+            DownloadSource.MODELSCOPE: "google-bert/albert-base-v1",
+        },
+        "albert-large-v1": {
+            DownloadSource.DEFAULT: "google-bert/albert-large-v1",
+            DownloadSource.MODELSCOPE: "google-bert/albert-large-v1",
+        },
+        "albert-xlarge-v1": {
+            DownloadSource.DEFAULT: "google-bert/albert-xlarge-v1",
+            DownloadSource.MODELSCOPE: "google-bert/albert-xlarge-v1",
+        },
+        "albert-xxlarge-v1": {
+            DownloadSource.DEFAULT: "google-bert/albert-xxlarge-v1",
+            DownloadSource.MODELSCOPE: "google-bert/albert-xxlarge-v1",
+        }
+    },
+    simple_name="albert-v1",
+    template="albert",
+    hidden_size=768,
+    link='',
+    description=''
+)
+
+## ernie系列
 register_model_group(
     models={
         "ernie-1.0-base-zh": {
