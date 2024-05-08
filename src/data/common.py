@@ -24,6 +24,8 @@ class DatasetConfig:
                  train_path='', 
                  val_path='', 
                  test_path='',
+                 per_device_train_batch_size: int = 8,
+                 per_device_eval_batch_size: int = 8,
                  pad_size=128, 
                  model_path=None,
                  SEP='',
@@ -42,3 +44,8 @@ class DatasetConfig:
         self.pad_size = pad_size
         self.SEP = SEP
         self.streaming = streaming
+        self.per_device_train_batch_size = per_device_train_batch_size
+        self.per_device_eval_batch_size = per_device_eval_batch_size
+        self.num_workers=1
+        self.shuffle=True
+        self.drop_last=False

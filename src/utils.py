@@ -27,6 +27,19 @@ def read_txt(file_path: str) -> str:
         content = f.read()
     return content
 
+def read_lines(file_path: str) -> list:
+    """
+    逐行读取txt文件内容的函数，移除空行和仅含空白字符的行
+    :param file_path: 文件路径，类型为字符串
+    :return: 文件的每一行（已清除空白字符）作为一个元素的列表，类型为字符串列表
+    """
+    with open(file_path, 'r') as f:
+        # 读取所有行，并移除每行末尾的空白字符，同时过滤掉那些仅包含空白字符的行
+        lines = [line.strip() for line in f if line.strip()]
+
+    return lines
+
+
 def read_xlsx(file_path:str,sheet_name:str='工作表1'):
     import pandas as pd
     import openpyxl

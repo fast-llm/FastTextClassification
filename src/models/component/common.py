@@ -115,30 +115,67 @@ class BaseModel(nn.Module):
                  multi_label: bool,
                  num_classes: int,
                  hidden_size: int,
-                 mlp_layers_config: List[MLPLayer]):
+                 mlp_layers_config: List[MLPLayer],
+                 re_init_n_layers:int=3):
+        """_summary_
+
+        Args:
+            model_path (str): _description_
+            update_all_layers (bool): _description_
+            multi_class (bool): _description_
+            multi_label (bool): _description_
+            num_classes (int): _description_
+            hidden_size (int): _description_
+            mlp_layers_config (List[MLPLayer]): _description_
+            re_init_n_layers (int): _description_ 初始化多少层
+        """
         super(BaseModel, self).__init__()
         self.multi_class = multi_class
         self.multi_label = multi_label
-        self.model = AutoModel.from_pretrained(model_path)
+        self.bert = AutoModel.from_pretrained(model_path)
+        
+        self.re_init_n_layers = re_init_n_layers
         if not update_all_layers:
-            for param in self.model.parameters():
+            for param in self.bert.parameters():
                 param.requires_grad = False
         else:
-            for param in self.model.parameters():
+            for param in self.bert.parameters():
                 param.requires_grad = True
+                # if re_init_n_layers > 0: self._do_re_init()
         self.fc = build_mlp_layers(num_classes, hidden_size, mlp_layers_config)
+        
         self.sigmoid = nn.Sigmoid()
         self.softmax = nn.Softmax(dim=-1)
-        
+    
+    # def _do_re_init(self):
+    #     # Re-init pooler.
+    #     self.model.pooler.dense.weight.data.normal_(mean=0.0, std=self.model.config.initializer_range)
+    #     self.model.pooler.dense.bias.data.zero_()
+    #     for param in self.model.pooler.parameters():
+    #         param.requires_grad = True
+
+    #     # Re-init last n layers.
+    #     for n in range(self.re_init_n_layers):
+    #         self.model.encoder.layer[-(n+1)].apply(self._init_weight_and_bias)
+
+    # def _init_weight_and_bias(self, module):                        
+    #     if isinstance(module, nn.Linear):
+    #         module.weight.data.normal_(mean=0.0, std=self.model.config.initializer_range)
+    #         if module.bias is not None:
+    #             module.bias.data.zero_()
+    #     elif isinstance(module, nn.LayerNorm):
+    #         module.bias.data.zero_()
+    #         module.weight.data.fill_(1.0)   
+            
     def forward(self, input, 
                 label: Optional[torch.Tensor]= None,
                 threshold: int=0.5):
         input_ids = input[0]
         attention_mask = input[1]
         token_type_ids = input[2]
-        output = self.model(input_ids=input_ids,
-                               attention_mask=attention_mask,
-                               token_type_ids=token_type_ids)
+        output = self.bert(input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            token_type_ids=token_type_ids)
         out = self.fc(output.pooler_output)
         
         
@@ -192,18 +229,28 @@ def build_mlp_layers(num_classes:int,
             # 添加全连接层
             linear_layer = nn.Linear(input_size, layer_config.size)
             mlp_layers.append(linear_layer)
-            input_size = layer_config.size # 更新输入大小为当前层的大小
+            # 添加BatchNorm1d层
+            batch_norm_layer = nn.BatchNorm1d(layer_config.size)
+            mlp_layers.append(batch_norm_layer)
             # 添加激活函数
             activation_fn = getattr(nn, layer_config.activation)()
             mlp_layers.append(activation_fn)
             # 添加Dropout层
             dropout_layer = nn.Dropout(p=layer_config.dropout)
             mlp_layers.append(dropout_layer)
+            
+            input_size = layer_config.size # 更新输入大小为当前层的大小
 
     # 添加输出层
-    output_layer = nn.Linear(layer_config.size, num_classes)
+    output_layer = nn.Linear(input_size, num_classes)
     mlp_layers.append(output_layer)
 
+    # 初始化
+    # for layer in mlp_layers:
+    #     if isinstance(layer, nn.Linear):
+    #         nn.init.xavier_uniform_(layer.weight.data, gain=1.)
+    #         # nn.init.kaiming_uniform_(m.weight.data)
+    
     # 组合所有层为Sequential模型
     return nn.Sequential(*mlp_layers)
 

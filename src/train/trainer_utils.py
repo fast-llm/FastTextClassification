@@ -3,7 +3,7 @@ import random
 import numpy as np
 from enum import Enum
 
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 from torch.optim import Adam, SGD, AdamW, Adagrad
@@ -11,7 +11,7 @@ from torch.optim.lr_scheduler import OneCycleLR
 import torch.nn as nn
 from transformers import Trainer
 from transformers.optimization import get_scheduler
-
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
 from extras.loggings import get_logger
 from hparams.data_args import DataArguments
@@ -47,6 +47,80 @@ def init_network(model,
                 nn.init.constant_(w, 0)
             else:
                 pass
+
+def optimizer_AdamW_LLRD(full_model: "PreTrainedModel", 
+                         mlp_lr: float = 0.001,
+                         weight_decay: float = 0.01,
+                         eps: float = 1e-8, 
+                        betas: Tuple[float, float] = (0.9, 0.999)
+                         ):
+    model = full_model.bert
+    mlp = full_model.fc
+    
+    opt_parameters = []    # To be passed to the optimizer (only parameters of the layers you want to update).
+    named_parameters = list(model.named_parameters()) 
+
+    # According to AAAMLP book by A. Thakur, we generally do not use any decay 
+    # for bias and LayerNorm.weight layers.
+    no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
+    init_lr = 3.5e-5 
+    head_lr = 3.6e-5
+    lr = init_lr
+
+    # === Pooler and regressor ======================================================  
+
+    params_0 = [p for n,p in named_parameters if ("pooler" in n or "regressor" in n) 
+                and any(nd in n for nd in no_decay)]
+    params_1 = [p for n,p in named_parameters if ("pooler" in n or "regressor" in n)
+                and not any(nd in n for nd in no_decay)]
+
+    head_params = {"params": params_0, "lr": head_lr, "weight_decay": 0.0}    
+    opt_parameters.append(head_params)
+
+    head_params = {"params": params_1, "lr": head_lr, "weight_decay": 0.01}    
+    opt_parameters.append(head_params)
+    # cal hidden layers ==========================================================
+    # 获取BertEncoder
+    encoder = model.encoder
+    # 获取BertEncoder的层列表
+    layer_list = encoder.layer
+    # 计算层数
+    num_layers = len(layer_list)
+    
+    # === 12 Hidden layers ==========================================================
+
+    for layer in range(num_layers-1,-1,-1):        
+        params_0 = [p for n,p in named_parameters if f"encoder.layer.{layer}." in n 
+                    and any(nd in n for nd in no_decay)]
+        params_1 = [p for n,p in named_parameters if f"encoder.layer.{layer}." in n 
+                    and not any(nd in n for nd in no_decay)]
+
+        layer_params = {"params": params_0, "lr": lr, "weight_decay": 0.0}
+        opt_parameters.append(layer_params)   
+
+        layer_params = {"params": params_1, "lr": lr, "weight_decay": 0.01}
+        opt_parameters.append(layer_params)       
+
+        lr *= 0.9     
+
+    # === Embeddings layer ==========================================================
+
+    params_0 = [p for n,p in named_parameters if "embeddings" in n 
+                and any(nd in n for nd in no_decay)]
+    params_1 = [p for n,p in named_parameters if "embeddings" in n
+                and not any(nd in n for nd in no_decay)]
+
+    embed_params = {"params": params_0, "lr": lr, "weight_decay": 0.0} 
+    opt_parameters.append(embed_params)
+
+    embed_params = {"params": params_1, "lr": lr, "weight_decay": 0.01} 
+    opt_parameters.append(embed_params)        
+    
+    # 线性层
+    params_2 = [p for n,p in mlp.named_parameters() if any(nd in n for nd in no_decay)]
+    mlp_params = {"params": params_2, "lr": mlp_lr, "weight_decay": weight_decay}
+    opt_parameters.append(mlp_params)
+    return AdamW(opt_parameters, lr=mlp_lr, eps=eps, betas=betas)
 
 def create_config(model_args: "ModelArguments",
                  data_args: "DataArguments",
@@ -129,6 +203,14 @@ def _create_optimizer(
                          eps=training_args.adam_epsilon, 
                          betas=(training_args.adam_beta1, training_args.adam_beta2),
                          )
+    elif training_args.optimizer_type.lower() == "adamw_llrd":
+        optimizer = optimizer_AdamW_LLRD(model,
+                                        mlp_lr=training_args.learning_rate,
+                                        weight_decay=training_args.weight_decay,
+                                        eps=training_args.adam_epsilon, 
+                                        betas=(training_args.adam_beta1, training_args.adam_beta2),
+                                        )
+        
     elif training_args.optimizer_type.lower() == "adamw":
         optimizer = AdamW(model.parameters(), 
                           lr=training_args.learning_rate,
@@ -277,7 +359,6 @@ def calculate_binary_accuracy(pred: torch.Tensor,
     Returns:
         float: _description_
     """
-    label = label.to(pred.device)
     label = (label > threshold).int()
     pred = (pred > threshold).int()  # 将预测值转换为0或1
     correct = (pred == label).sum().item()  # 计算预测正确的样本数
@@ -297,11 +378,9 @@ def calculate_multi_class_accuracy(pred: torch.Tensor,
     _ , s = pred.size()
     if s>1:
         pred = pred.argmax(dim=-1)  # 获取预测结果中概率最高的类别
-        label = label.to(pred.device)
         label = label.argmax(dim=-1)
         correct = (pred == label).sum().item()  # 计算预测正确的样本数
     else:
-        label = label.to(pred.device)
         label = (label > threshold).int()
         pred = (pred > threshold).int()  # 将预测值转换为0或1
         correct = (pred == label).sum().item()  # 计算预测正确的样本数
@@ -313,7 +392,6 @@ def calculate_multi_label_accuracy(pred: torch.Tensor,
                                    ) -> tuple[torch.Tensor,int]:
     if threshold < 0 or threshold > 1:
         raise ValueError("threshold must be in 0-1")
-    label = label.to(pred.device)
     label = (label > threshold).int()
     pred = (pred > threshold).int()  # 将预测值转换为0或1
     correct_all = (pred == label).all(dim=1).sum().item()  # 计算所有标签都预测正确的样本数
@@ -323,8 +401,8 @@ def calculate_multi_label_accuracy(pred: torch.Tensor,
 
 
 #计算准确率
-def calculate_accuracy(pred: torch.tensor,
-                       label: torch.tensor,
+def calculate_accuracy(pred: torch.Tensor,
+                       label: torch.Tensor,
                        threshold:float = 0.5,
                        multi_class: bool = False,
                        multi_label: bool = False):
@@ -350,6 +428,70 @@ def calculate_accuracy(pred: torch.tensor,
         return calculate_multi_label_accuracy(pred, label, threshold)
     else:
         return calculate_binary_accuracy(pred, label)
+
+
+
+class ClassificationReport:
+    def __init__(self,
+                 predict_all: torch.Tensor,
+                 labels_all: torch.Tensor,
+                 target_names: list[str],
+                 num_classes: int = 2,
+                 threshold: float = 0.5,
+                 digits: int = 4,
+                 multi_label: bool = False):
+    
+        self.predict_all = predict_all
+        self.labels_all = labels_all
+        self.target_names = target_names
+        self.num_classes = num_classes
+        self.threshold = threshold
+        self.digits = digits
+        self.multi_label = multi_label
+        
+        # Ensure target names cover all classes
+        self.adjusted_target_names = (self.target_names + [f'class {i}' for i in range(len(self.target_names), self.num_classes)])[:self.num_classes]
+    
+    def calculate_metrics(self):
+        if self.multi_label:
+            # 多标签处理：应用阈值
+            binary_predictions = (self.predict_all > self.threshold).int()
+            labels_all = (self.labels_all > self.threshold).int()
+        else:
+            # 二分类和多分类处理：使用 argmax
+            binary_predictions = self.predict_all.argmax(dim=-1)
+            labels_all = self.labels_all.argmax(dim=-1)
+        
+        # 计算精确度、召回率、F1分数和支持数
+        precision, recall, f1, support = precision_recall_fscore_support(
+            labels_all.cpu().numpy(),
+            binary_predictions.cpu().numpy(),
+            average=None,
+            labels=list(range(self.num_classes)),
+            zero_division=0
+        )
+        
+        
+        # Generate confusion matrix and calculate per-class accuracy
+        cm = confusion_matrix(labels_all.cpu().numpy(), binary_predictions.cpu().numpy(), labels=np.arange(self.num_classes))
+        class_accuracy = np.nan_to_num(cm.diagonal() / cm.sum(axis=1), nan=0.0)
+        total_per_class = cm.sum(axis=1)  # Total samples per class
+        
+        total = labels_all.numel()
+        correct = (binary_predictions == labels_all).sum().item()
+        
+        # 计算准确率
+        accuracy = correct / total if total > 0 else 0  # 防止除以零
+        return class_accuracy, correct, total, total_per_class, precision, recall, f1, support
+    
+    def metrics(self):
+        class_accuracy, correct, total, total_per_class, precision, recall, f1, support = self.calculate_metrics()
+        # 构建报告字符串
+        report = "          class        accuracy     precision     recall      f1-score      support     total\n\n"
+        for i in range(self.num_classes):
+            report += f"{self.adjusted_target_names[i]:>15}    {class_accuracy[i]:>10.{self.digits}f}    {precision[i]:>10.{self.digits}f}    {recall[i]:>10.{self.digits}f}    {f1[i]:>10.{self.digits}f}    {support[i]:>6}    {total_per_class[i]:>6}\n"
+        return report
+
 
 
 def setup_seed(seed: int):

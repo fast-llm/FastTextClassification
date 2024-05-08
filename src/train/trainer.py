@@ -6,14 +6,12 @@ import numpy as np
 import torch
 from transformers import Trainer
 from accelerate import Accelerator
-
-
-from data.transformer_loader import DatasetIterater
+from torch.utils.data import DataLoader, Dataset
 from extras.loggings import get_logger
 from hparams.data_args import DataArguments
 from models.component.common import BaseModel
-from utils import get_time_dif
-from .trainer_utils import calculate_accuracy, calculate_num_training_steps, create_custom_optimizer, create_custom_scheduler, create_loss_fn
+from utils import get_time_dif, read_lines
+from .trainer_utils import ClassificationReport, calculate_accuracy, calculate_num_training_steps, create_custom_optimizer, create_custom_scheduler, create_loss_fn
 
 
 if TYPE_CHECKING:
@@ -31,9 +29,9 @@ class CustomClassifyTrainer(object):
                  model_args: "ModelArguments" = None,
                  data_args: "DataArguments"= None,
                  training_args: "TrainingArguments"= None,
-                 train_iter: "DatasetIterater" = None, 
-                 val_iter: "DatasetIterater" = None, 
-                 test_iter: "DatasetIterater" = None):
+                 train_iter: "DataLoader" = None, 
+                 val_iter: "DataLoader" = None, 
+                 test_iter: "DataLoader" = None):
         self.model = model
         self.training_args = training_args
         self.model_args = model_args
@@ -64,18 +62,23 @@ class CustomClassifyTrainer(object):
         self.multi_class = self.data_args.multi_class
         self.multi_label = self.data_args.multi_label
         self.threshold = self.training_args.threshold
+        self.num_classes = self.training_args.num_classes
+        self.target_names = read_lines(os.path.join(self.data_args.dataset_dir,
+                                                    self.data_args.dataset,
+                                                    'data',
+                                                    self.data_args.class_file))
+        self.best_epoch = 0
+        self.best_acc = 0
         self.start_time = time.time()
     
     def init_model(self):
-        import torch.nn.utils as nutils
+        from torch.nn import utils
         # 参数初始化
-        
-        
         # 梯度裁剪
-        nutils.clip_grad_norm(self.model.parameters(), 
+        utils.clip_grad_norm_(self.model.parameters(), 
                               max_norm=self.training_args.max_grad_norm)
-
-    
+        
+        
     def train(self):
         self.optimizer = create_custom_optimizer(self.model, self.training_args)
 
@@ -87,90 +90,144 @@ class CustomClassifyTrainer(object):
         for epoch in range(self.epochs):
             self.accelerator.print(f"--------------Training Epoch {epoch}--------------")
             self.train_one_epoch(epoch)
+            self.accelerator.print(f"Time: {get_time_dif(self.start_time)}, Validate. epoch {epoch}")
             self.validate(epoch)
+            self.accelerator.print(f"---------------------------------------------------")
 
-    
-    def train_one_epoch(self,epoch:int):
+        self.accelerator.print(f"Time: {get_time_dif(self.start_time)} \n"
+                               "Best epoch: {self.best_epoch}, Best eval acc: {self.best_acc}")
         
-        self.model.train()
+        
+    def train_one_epoch(self,epoch:int):
         with self.accelerator.accumulate(self.model):
+            self.model.train()
             avg_loss = 0.0
-            total_accurate = 0.0
-            num_elem = 0
+            avg_accuracy = 0
+            total_correct = 0
+            total_num = 0
+            total_pred = []
+            total_labels = []
             for step, (inputs, labels) in enumerate(self.train_iter):
                 input_ids, attention_mask, token_type_ids = inputs
+                input_ids = input_ids.squeeze()
+                attention_mask = attention_mask.squeeze()
+                token_type_ids = token_type_ids.squeeze()
+                
+                
+                self.model.zero_grad()
                 # accelerator.print(f"input_ids device: {input_ids.device}")
-                out, _ = self.model([input_ids, attention_mask, token_type_ids])
-                # accelerator.print(f"out device: {out.device}")
-                # accelerator.print(f"label-0 device: {labels.device}")
-                labels = labels.to(out.device)
+                pred, _ = self.model([input_ids, attention_mask, token_type_ids])
+                
                 
                 # accelerator.print(f"label-1 device: {labels.device}")
                 self.optimizer.zero_grad()
                 
-                loss = self.loss_fn(out, labels)
-                gather_loss = self.accelerator.gather(loss)
+                loss = self.loss_fn(pred, labels)
                 self.accelerator.backward(loss)
-                
                 self.optimizer.step()
                 self.lr_scheduler.step()
                 
-            
-                # accelerator.print(f"label-1 device: {labels.device}")
-                out, labels = self.accelerator.gather((out, labels))
-                accurate, accurate_all, total = calculate_accuracy(out, 
-                                                                   labels,
-                                                                   threshold=self.threshold,
-                                                                   multi_class=self.multi_class,
-                                                                   multi_label=self.multi_label
-                                                                   )
+                gather_loss = self.accelerator.gather(loss)
+                pred, labels = self.accelerator.gather((pred, labels))
+                
+                
+                total_pred.append(pred)
+                total_labels.append(labels)
                 avg_loss += gather_loss.mean().item()
-                num_elem += total
-                total_accurate += accurate
+                
+                report = ClassificationReport(pred, 
+                                            labels, 
+                                            self.target_names,
+                                            num_classes=2)
+                class_accuracy, correct, total, total_per_class, precision, recall, f1, support = report.calculate_metrics()
+                total_correct += correct
+                total_num += total
+
                 if (1+step) % self.logging_step == 0:
                     avg_loss /= self.logging_step
-                    eval_metric = total_accurate / num_elem
-                    self.accelerator.print(f"{accurate},{accurate_all},{total}")
-                    self.accelerator.print(f"Time: {get_time_dif(self.start_time)}, Train epoch:{epoch}, step:{step}, Loss {avg_loss}, eval_metric:{100*eval_metric:.2f}%")
+                    avg_accuracy = total_correct / total_num
+                    self.accelerator.print(f"Time: {get_time_dif(self.start_time)}, epoch:{epoch}, step:{step}, loss {avg_loss}, avg_accuracy: {100*avg_accuracy:.2f}%")
                     avg_loss = 0.0
-                    total_accurate = 0.0
-                    num_elem = 0
-    
+                    total_correct = 0
+                    total_num = 0
+        
+        report = ClassificationReport(torch.cat(total_pred, dim=0), 
+                                      torch.cat(total_labels, dim=0), 
+                                      self.target_names,
+                                      num_classes=self.num_classes,
+                                      multi_label=self.multi_label)
+        self.accelerator.print(f"----------- Training Metrics for epoch: {epoch}--------------")
+        self.accelerator.print(report.metrics())
+        # torch_gc()
+        
+
+        
     def validate(self, epoch:int):
-        self.model.eval()
-        num_elem = 0
-        total_accurate = 0
-        avg_loss = 0
-        self.accelerator.print(f"--------------Time: {get_time_dif(self.start_time)}, Validate on validation set. epoch {epoch}--------------")
         with torch.inference_mode():
+            self.model.eval()
+            avg_loss = 0.0
+            avg_accuracy = 0
+            total_correct = 0
+            total_num = 0
+            total_pred = []
+            total_labels = []
             for step, (inputs, labels) in enumerate(self.val_iter):
                 input_ids, attention_mask, token_type_ids = inputs
-                # accelerator.print(f"input_ids device: {input_ids.device}")
-                out, _ = self.model([input_ids, attention_mask, token_type_ids])
+                input_ids = input_ids.squeeze()
+                attention_mask = attention_mask.squeeze()
+                token_type_ids = token_type_ids.squeeze()
                 
-                labels = labels.to(out.device)
-                loss = self.loss_fn(out, labels)
-
-                out, labels,loss = self.accelerator.gather((out, labels, loss))
-                accurate, accurate_all, total = calculate_accuracy(out, 
-                                                                   labels,
-                                                                   threshold=self.threshold,
-                                                                   multi_class=self.multi_class,
-                                                                   multi_label=self.multi_label
-                                                                   )
-                avg_loss += loss.mean().item()
-                num_elem += total
-                total_accurate += accurate
-            eval_metric = total_accurate / num_elem
-            # print
-            avg_loss /= len(self.val_iter)
+                
+                # accelerator.print(f"input_ids device: {input_ids.device}")
+                pred, _ = self.model([input_ids, attention_mask, token_type_ids])
+                
+                loss = self.loss_fn(pred, labels)
+                gather_loss = self.accelerator.gather(loss)
+                pred, labels = self.accelerator.gather((pred, labels))
+                
+                total_pred.append(pred)
+                total_labels.append(labels)
+                
+                avg_loss += gather_loss.mean().item()
+                report = ClassificationReport(pred, 
+                                            labels, 
+                                            self.target_names,
+                                            num_classes=2)
+                class_accuracy, correct, total, total_per_class, precision, recall, f1, support = report.calculate_metrics()
+                total_correct += correct
+                total_num += total
+        avg_loss /= step
+        avg_accuracy = total_correct / total_num
+        # print
+        avg_loss /= len(self.val_iter)
+        
+        if avg_accuracy > self.best_acc:
+            self.best_acc = avg_accuracy
+            self.best_epoch = epoch
+        
         self.accelerator.wait_for_everyone()
-        self.accelerator.print(f"Time: {get_time_dif(self.start_time)}, epoch:{epoch}, loss:{avg_loss:.4f}, eval_metric:{100*eval_metric:.2f}%")
-        self.accelerator.print(f"-----------END Evaluate on validation set. epoch {epoch}--------------")
+        report = ClassificationReport(torch.cat(total_pred, dim=0), 
+                                      torch.cat(total_labels, dim=0), 
+                                      target_names=self.target_names,
+                                      num_classes=self.num_classes,
+                                      multi_label=self.multi_label)
+        self.accelerator.print(f"----------- Validation Metrics for epoch: {epoch}--------------")
+        self.accelerator.print(report.metrics())
+        self.accelerator.print(f"Time: {get_time_dif(self.start_time)}, epoch:{epoch}, loss: {avg_loss}, eval_metric:{100*avg_accuracy:.2f}%")
 
     def test(self):
         pass
     
-    def save_predictions(self) -> None:
-
+    def save_ckp(self):
+        
+        pass
+    
+    
+    def load_ckp(self):
+        
+        
+        pass
+    
+    def save_predictions(self,epoch:int) -> None:
+        
         pass
