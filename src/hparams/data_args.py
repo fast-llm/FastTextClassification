@@ -127,8 +127,7 @@ class DataArguments:
         
         if self.multi_class and self.multi_label:
             raise ValueError("Only one of `multi_class` or `multi_label` can be set to True.")
-        
-    
+
     def _load_config(self):
         logger.info(f"Loading training configuration from {self.data_config_path}")
         config_data = ModelConfig(self.data_config_path)
