@@ -17,6 +17,46 @@ from extras.loggings import get_logger
 
 logger = get_logger(__name__)
 
+def read_data(data_path:str,
+              sep:str='\t', 
+              sheet_name=None,
+              label_col:str='label',
+              text_col:str='review'
+              )->list:
+    if data_path.endswith('.json'):
+        res = read_json(data_path)
+        data = []
+        for item in res:
+            data.append([item[text_col], item[label_col]])
+        text_index = 0
+        label_index = 1
+    elif data_path.endswith('.txt'):
+        with open(data_path, 'r', encoding='utf-8') as file:
+            data = [line.strip().split(sep) for line in file if line.strip()]
+            text_index = 0
+            label_index = 1
+    elif data_path.endswith('.xlsx'):
+        import pandas as pd
+        data = pd.read_excel(data_path, sheet_name=sheet_name)
+        data = data.values.tolist()
+        headers = data[0]
+        text_index = headers.index(text_col)
+        label_index = headers.index(label_col)
+    elif data_path.endswith('.csv'):
+        import csv
+        with open(data_path, 'r', encoding='utf-8') as file:
+            reader = csv.reader(file,delimiter=sep)
+            data = [row for row in reader]
+            headers = data[0]
+            data = data[1:]
+            text_index = headers.index(text_col)
+            label_index = headers.index(label_col)
+    data = [{
+             'text': row[text_index],
+             'label': str(row[label_index])
+             } for row in data if row]  # Format data
+    return data
+
 def read_txt(file_path: str) -> str:
     """
     读取txt文件内容的函数
