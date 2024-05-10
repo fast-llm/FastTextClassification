@@ -11,7 +11,15 @@ ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 # Name of the files used for checkpointing
 TRAINING_ARGS_NAME = "training_args.bin"
 
-TRAINER_STATE_NAME = "trainer_state.json"
+DATA_ARGS_NAME = "data_args.bin"
+
+MODEL_ARGS_NAME = "model_args.bin"
+
+SAVE_MODEL_NAME = 'pytorch_model.bin'
+
+BEST_MODEL_PATH = 'best_model'
+
+SAVE_CONFIG_NAME = 'config.json'
 
 OPTIMIZER_NAME = "optimizer.pt"
 
@@ -24,6 +32,8 @@ SCALER_NAME = "scaler.pt"
 FSDP_MODEL_NAME = "pytorch_model_fsdp"
 
 LOG_FILE_NAME = "trainer_log.jsonl"
+
+TRAINING_PNG_NAME = "training_logs.png"
 
 V_HEAD_WEIGHTS_NAME = "value_head.bin"
 

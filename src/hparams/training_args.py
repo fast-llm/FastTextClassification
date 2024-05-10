@@ -4,7 +4,9 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Union
 import math
 
-from extras.constants import ROOT_PATH
+import torch
+
+from extras.constants import ROOT_PATH, TRAINING_ARGS_NAME
 from extras.misc import get_current_device, get_device_count
 from train.training_types import LossFnType, SchedulerType,ParallelMode
 from utils import check_dir_exist
@@ -66,7 +68,8 @@ class TrainingArguments:
     activation: str = field(default=None,metadata={"help": "Activation function for the model."})
     seed: int = field(default=None,metadata={"help": "Random seed for initialization."})
     threshold: float = field(default=None,metadata={"help": "threshold for acc"})
-    
+    resume: bool = field(default=None,metadata={"help": "Whether or not to resume training."})
+    resume_file: str = field(default=None,metadata={"help": "File to resume training from."})
     
     # 优化器配置
     loss_fn: str = field(default=None,metadata={"help": "Loss function to use for training."})
@@ -112,10 +115,11 @@ class TrainingArguments:
     # save
     save_steps: int = field(default=None,metadata={"help": "Number of steps to save the model."})
     save_total_limit: int = field(default=None,metadata={"help": "Total number of checkpoints to save."})
-    
+    num_best_models: int = field(default=None,metadata={"help": "Number of best models to save."})
     # early stopping
     early_stopping: bool = field(default=None,metadata={"help": "Whether or not to enable early stopping."})
     patience: int = field(default=None,metadata={"help": "Number of epochs to wait before early stopping."})
+    verbose: bool = field(default=None,metadata={"help": "If True, prints a message for each validation loss improvement."})
     delta: float = field(default=None,metadata={"help": "Minimum change in the monitored quantity to qualify as an improvement."})
     early_stop_metric: str = field(default=None,metadata={"help": "Metric to monitor for early stopping."})
     
@@ -150,7 +154,7 @@ class TrainingArguments:
     def _load_config(self):
         logger.info(f"Loading training configuration from {self.train_config_path}")
         config_data = ModelConfig(self.train_config_path)
-        logger.info(f"Training configuration: {config_data}")
+        # logger.info(f"Training configuration: {config_data}")
         
         # 显卡配置
         self.num_gpus = get_device_count()
@@ -197,10 +201,13 @@ class TrainingArguments:
         if not self.threshold:
             self.threshold = config_data.get_parameter("training").get('threshold', 0.5)
         
+        if self.resume is None:
+            self.resume = config_data.get_parameter('training').get('resume', False)
+        if self.resume_file is None:
+            self.resume_file = config_data.get_parameter('training').get('resume_file', None)
+        
         if not self.loss_fn:
             self.loss_fn = config_data.get_parameter("optimizer_settings").get('loss_fn', "CrossEntropyLoss")
-                
-            
         if not self.optimizer_type:
             self.optimizer_type = config_data.get_parameter("optimizer_settings").get('optimizer_type', self.optimizer_type)
         if not self.weight_decay:
@@ -234,6 +241,7 @@ class TrainingArguments:
             self.log_dir = os.path.join(self.output_dir, self.log_dir)
             check_dir_exist(self.log_dir, create=True)
         
+        
         # evaluation
         if not self.logging_steps:
             self.logging_steps = config_data.get_parameter('output').get('logging_steps', 5)
@@ -241,6 +249,8 @@ class TrainingArguments:
         if not self.eval_steps:
             self.eval_steps = config_data.get_parameter('output').get('eval_steps', 50)
         
+        if not self.num_best_models:
+            self.num_best_models = config_data.get_parameter('output').get('num_best_models', 5)
         # eval_metric: str = field(default=None,metadata={"help": "Evaluation metric."})
         
         # save 
@@ -271,15 +281,21 @@ class TrainingArguments:
         if not self.weight_initialization:
             self.weight_initialization = config_data.get_parameter("hyper_params").get('weight_initialization', self.weight_initialization)
         
+        if not self.save_steps:
+            self.save_steps = config_data.get_parameter("output").get('save_steps', 1000)
+        
         # early stopping
         if not self.early_stopping:
             self.early_stopping = config_data.get_parameter("early_stopping").get('early_stopping', self.early_stopping)
         if not self.patience:
             self.patience = config_data.get_parameter("early_stopping").get('patience', self.patience)
+        if not self.verbose:
+            self.verbose = config_data.get_parameter("early_stopping").get('verbose', self.verbose)
         if not self.delta:
             self.delta = config_data.get_parameter("early_stopping").get('delta', self.delta)
         if not self.early_stop_metric:
             self.early_stop_metric = config_data.get_parameter("early_stopping").get('early_stop_metric', self.early_stop_metric)
+
 
     def get_warmup_steps(self, num_training_steps: int):
         """
@@ -303,3 +319,9 @@ class TrainingArguments:
             text = f.read()
         return cls(**json.loads(text))
 
+    @classmethod
+    def load_from_bin(cls, model_path: str):
+        r"""Creates an instance from the content of `json_path`."""
+        args_path = os.path.join(model_path,TRAINING_ARGS_NAME)
+        arguments = torch.load(args_path)
+        return arguments

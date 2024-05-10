@@ -1,6 +1,10 @@
 from dataclasses import asdict, dataclass, field
+import os
 from typing import Any, Dict, Optional
+import json
 
+import torch
+from extras.constants import MODEL_ARGS_NAME
 from extras.loggings import get_logger
 logger = get_logger(__name__)
 
@@ -46,3 +50,24 @@ class ModelArguments:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+    def save_to_json(self, json_path: str):
+        r"""Saves the content of this instance in JSON format inside `json_path`."""
+        json_string = json.dumps(asdict(self), indent=4, sort_keys=True) + "\n"
+        with open(json_path, "w", encoding="utf-8") as f:
+            f.write(json_string)
+
+    @classmethod
+    def load_from_json(cls, json_path: str):
+        r"""Creates an instance from the content of `json_path`."""
+        with open(json_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        return cls(**json.loads(text))
+    
+    @classmethod
+    def load_from_bin(cls, model_path: str):
+        r"""Creates an instance from the content of `json_path`."""
+        args_path = os.path.join(model_path,MODEL_ARGS_NAME)
+        arguments = torch.load(args_path)
+        arguments.model_name_or_path = model_path
+        return arguments

@@ -4,8 +4,8 @@ from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, List, Optional
 import torch.nn as nn
 import torch
-from transformers import AutoModel, BertTokenizer, AutoTokenizer
-
+from transformers import AutoModel, BertTokenizer, AutoTokenizer, AutoConfig
+import torch.nn.functional as F
 from extras.constants import get_model_info
 from extras.packages import compare_versions, get_transformer_version
 from extras.loggings import get_logger
@@ -58,8 +58,6 @@ class ModelConfig(object):
                                        data_args.dataset,
                                        'data',
                                        data_args.vocab_file)
-        self.save_folder = training_args.output_dir
-        self.save_path = self.save_folder + self.model_name + '.ckpt'  # 模型训练结果
         self.log_path = training_args.log_dir
         self.num_gpus = training_args.num_gpus
         self.num_workers = data_args.processing_num_workers
@@ -116,7 +114,8 @@ class BaseModel(nn.Module):
                  num_classes: int,
                  hidden_size: int,
                  mlp_layers_config: List[MLPLayer],
-                 re_init_n_layers:int=3):
+                 re_init_n_layers:int=3
+                 ):
         """_summary_
 
         Args:
@@ -132,9 +131,12 @@ class BaseModel(nn.Module):
         super(BaseModel, self).__init__()
         self.multi_class = multi_class
         self.multi_label = multi_label
-        self.bert = AutoModel.from_pretrained(model_path)
         
+        self.bert = AutoModel.from_pretrained(model_path)
+
         self.re_init_n_layers = re_init_n_layers
+        self.fc = build_mlp_layers(num_classes, hidden_size, mlp_layers_config)
+        
         if not update_all_layers:
             for param in self.bert.parameters():
                 param.requires_grad = False
@@ -142,12 +144,59 @@ class BaseModel(nn.Module):
             for param in self.bert.parameters():
                 param.requires_grad = True
                 # if re_init_n_layers > 0: self._do_re_init()
-        self.fc = build_mlp_layers(num_classes, hidden_size, mlp_layers_config)
         
-        self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax(dim=-1)
+        
+        # self.sigmoid = nn.Sigmoid()
+        # self.softmax = nn.Softmax(dim=-1)
+        
+        # self.init_params = {
+        #     "model_path": model_path,
+        #     "update_all_layers": update_all_layers,
+        #     "multi_class": multi_class,
+        #     "multi_label": multi_label,
+        #     "num_classes": num_classes,
+        #     "hidden_size": hidden_size,
+        #     "mlp_layers_config": [layer.dict for layer in mlp_layers_config],
+        #     "re_init_n_layers": self.re_init_n_layers
+        # }
+
+
+    def forward(self, input, 
+                threshold: int=0.5,
+                predict: bool = False):
+        """_summary_
+
+        Args:
+            input (_type_): _description_
+            label (Optional[torch.Tensor], optional): _description_. Defaults to None.
+            threshold (int, optional): _description_. Defaults to 0.5.
+
+        Raises:
+            ValueError: _description_
+        Returns:
+            _type_: _description_
+            输出模型原始的logits,很多损失函数期望接收原始logits,
+            而不是经过sigmoid或softmax处理的概率值，能提高数值稳定性并减少计算量
+        """
+        input_ids, attention_mask, token_type_ids = input
+        output = self.bert(input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            token_type_ids=token_type_ids)
+        logits = self.fc(output.pooler_output)
+        
+        if predict:
+            if self.multi_class and self.multi_label:
+                raise ValueError("multi_class and multi_label cannot be True at the same time.")
+            elif self.multi_class:
+                prob = F.softmax(logits, dim=-1)
+                pred = prob.argmax(dim=-1)
+            elif self.multi_label:
+                prob = F.sigmoid(logits)
+                pred = (prob > threshold).int()
+            return logits, prob, pred
+        return logits, None, None
     
-    # def _do_re_init(self):
+       # def _do_re_init(self):
     #     # Re-init pooler.
     #     self.model.pooler.dense.weight.data.normal_(mean=0.0, std=self.model.config.initializer_range)
     #     self.model.pooler.dense.bias.data.zero_()
@@ -166,37 +215,6 @@ class BaseModel(nn.Module):
     #     elif isinstance(module, nn.LayerNorm):
     #         module.bias.data.zero_()
     #         module.weight.data.fill_(1.0)   
-            
-    def forward(self, input, 
-                label: Optional[torch.Tensor]= None,
-                threshold: int=0.5):
-        input_ids = input[0]
-        attention_mask = input[1]
-        token_type_ids = input[2]
-        output = self.bert(input_ids=input_ids,
-                            attention_mask=attention_mask,
-                            token_type_ids=token_type_ids)
-        out = self.fc(output.pooler_output)
-        
-        
-        if self.multi_class and self.multi_label:
-            raise ValueError("multi_class and multi_label cannot be True at the same time.")
-        elif self.multi_class:
-            # out = self.softmax(out)
-            pred = out.argmax(dim=-1)
-        elif self.multi_label:
-            # out = self.sigmoid(out)
-            pred = (out > threshold).int()
-        else:
-            # out = self.sigmoid(out)
-            pred = (out > threshold).int()  # 将预测值转换为0或1
-        
-        
-        if label is None:  # 直接输出概率值作为预测结果
-            return out, None
-        else:   # 输出概率值和
-            return out, pred
-
 
 def ernie_available():
     # transformers4.22开始支持ernie
