@@ -43,9 +43,10 @@ def read_data(data_path:str,
         text_index = headers.index(text_col)
         label_index = headers.index(label_col)
     elif data_path.endswith('.csv'):
+        import pandas as pd
         import csv
         with open(data_path, 'r', encoding='utf-8') as file:
-            reader = csv.reader(file,delimiter=sep)
+            reader = csv.reader(file)
             data = [row for row in reader]
             headers = data[0]
             data = data[1:]
