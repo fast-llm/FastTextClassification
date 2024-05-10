@@ -27,3 +27,15 @@ class LossFnType(ExplicitEnum):
     NLL = "NLLLoss"
     POISSON_NLL = "PoissonNLLLoss"
     KL_DIV = "KLDivLoss"
+
+
+class SaveModelType(ExplicitEnum):
+    BIN = '.bin'
+    PT = '.pt'
+    PTH = '.pth'
+    ONNX = '.onnx'
+
+if __name__ == "__main__":
+    a = SaveModelType.BIN
+    print(a)
+    print(a.value)

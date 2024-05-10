@@ -124,6 +124,11 @@ class TrainingArguments:
     early_stop_metric: str = field(default=None,metadata={"help": "Metric to monitor for early stopping."})
     
     
+    # tensorboard
+    tensor_board: bool = field(default=False,metadata={"help": "Whether or not to use tensorboard."})
+    tensorboard_dir: str = field(default=None,metadata={"help": "Directory to save the tensorboard logs."})
+    
+    
     def __post_init__(self):
         def split_arg(arg):
             if isinstance(arg, str):
@@ -286,7 +291,7 @@ class TrainingArguments:
         
         # early stopping
         if not self.early_stopping:
-            self.early_stopping = config_data.get_parameter("early_stopping").get('early_stopping', self.early_stopping)
+            self.early_stopping = config_data.get_parameter("early_stopping").get('enable', self.early_stopping)
         if not self.patience:
             self.patience = config_data.get_parameter("early_stopping").get('patience', self.patience)
         if not self.verbose:
@@ -296,7 +301,14 @@ class TrainingArguments:
         if not self.early_stop_metric:
             self.early_stop_metric = config_data.get_parameter("early_stopping").get('early_stop_metric', self.early_stop_metric)
 
-
+        # TensorBoard
+        if not self.tensor_board:
+            self.tensor_board = config_data.get_parameter("output").get('tensor_board', False)
+        if not self.tensorboard_dir:
+            self.tensorboard_dir = config_data.get_parameter("output").get('tensorboard_dir', 'tensorboard')
+            self.tensorboard_dir = os.path.join(self.output_dir, self.tensorboard_dir)
+            check_dir_exist(self.tensorboard_dir, create=True)
+            
     def get_warmup_steps(self, num_training_steps: int):
         """
         Get number of steps used for a linear warmup.

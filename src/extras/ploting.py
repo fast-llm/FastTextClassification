@@ -34,7 +34,7 @@ def plot_loss(output_dir:str,
               train_steps:list, train_losses:list, train_acc:list,
               eval_steps:list, eval_losses:list, eval_acc:list):
     # 创建图表
-    fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots(figsize=(10,5))
    # 绘制损失曲线
     ax1.set_xlabel('Steps')
     ax1.set_ylabel('Loss')
@@ -44,6 +44,7 @@ def plot_loss(output_dir:str,
     # 创建双y轴
     ax2 = ax1.twinx()
     ax2.set_ylabel('Accuracy')
+    ax2.set_ylim(0, 1)  # 设置准确率在 0-1
     ax2.plot(train_steps, train_acc, label='Training Accuracy', color='deepskyblue')
     ax2.plot(eval_steps, eval_acc, label='Validation Accuracy', color='limegreen', linestyle='--')
 
@@ -55,11 +56,11 @@ def plot_loss(output_dir:str,
     # 显示图表
     plt.title('Training and Validation Metrics')
     figure_path = os.path.join(output_dir,TRAINING_PNG_NAME)
-    plt.savefig(figure_path,format="png", dpi=100)
+    plt.savefig(figure_path,format="png", dpi=200)
     plt.ioff()
     plt.show()
     plt.close(fig)
-    logger.info(f"Figure saved at:{figure_path}")
+    # logger.info(f"Figure saved at:{figure_path}")
 
 def sort_data_by_step(steps:list, losses:list, accuracy:list):
     # 使用 zip 函数将步骤、损失和准确率打包在一起，然后进行排序
@@ -70,31 +71,42 @@ def sort_data_by_step(steps:list, losses:list, accuracy:list):
 
 def plot_data(queue):
     try:
-        data_point = queue.get()  # 从队列中获取数据
-        step, output_dir = data_point.get("step"), data_point.get("output_dir")
-        log_file = os.path.join(output_dir, LOG_FILE_NAME)
-        if os.path.exists(log_file):
-            data = read_jsonl(log_file)
-            train_steps, train_losses, eval_steps, eval_losses = [], [], [], []
-            train_acc, eval_acc = [], []
-            for item in data:
-                if item['accuracy']:
-                    # 对训练数据和验证数据进行排序
-                    train_steps.append(item['step'])
-                    train_losses.append(item['loss'])
-                    train_acc.append(item['accuracy'])
-                if item['eval_loss']:
-                    eval_steps.append(item['step'])
-                    eval_losses.append(item['eval_loss'])
-                    eval_acc.append(item['eval_accuracy'])
-            if len(train_losses)>0:
-                train_steps, train_losses, train_acc = sort_data_by_step(train_steps, train_losses, train_acc)
-            if len(eval_losses)>0:
-                eval_steps, eval_losses, eval_acc = sort_data_by_step(eval_steps, eval_losses, eval_acc)
-            plot_loss(output_dir, 
-                    train_steps, train_losses, train_acc, 
-                    eval_steps, eval_losses, eval_acc)
+        while True:
+            data_point = queue.get()  # 从队列中获取数据
+            if data_point is None:
+                break  # 如果接收到 None，结束循环
+            step, output_dir = data_point.get("step"), data_point.get("output_dir")
+            log_file = os.path.join(output_dir, LOG_FILE_NAME)
+            if os.path.exists(log_file):
+                data = read_jsonl(log_file)
+                train_steps, train_losses, eval_steps, eval_losses = [], [], [], []
+                train_acc, eval_acc = [], []
+                for item in data:
+                    if item['accuracy']:
+                        # 对训练数据和验证数据进行排序
+                        train_steps.append(item['step'])
+                        train_losses.append(item['loss'])
+                        train_acc.append(item['accuracy'])
+                    if item['eval_loss']:
+                        eval_steps.append(item['step'])
+                        eval_losses.append(item['eval_loss'])
+                        eval_acc.append(item['eval_accuracy'])
+                if len(train_losses)>0:
+                    train_steps, train_losses, train_acc = sort_data_by_step(train_steps, train_losses, train_acc)
+                if len(eval_losses)>0:
+                    eval_steps, eval_losses, eval_acc = sort_data_by_step(eval_steps, eval_losses, eval_acc)
+                plot_loss(output_dir, 
+                        train_steps, train_losses, train_acc, 
+                        eval_steps, eval_losses, eval_acc)
     except Exception as e:
         logger.error(f"Error in plot_data: {e}")
         raise e
-        
+    finally:
+        pass
+
+
+if __name__ == "__main__":
+    output_dir = "./data/ChnSentiCorp_htl_all/checkpoint/"
+    plot_loss(output_dir, 
+              [1, 2, 3, 4, 5], [0.1, 0.2, 0.3, 0.4, 0.5], [0.5, 0.4, 0.3, 0.2, 0.1], 
+              [1, 2, 3, 4, 5], [0.5, 0.4, 0.3, 0.2, 0.1], [0.1, 0.2, 0.3, 0.4, 0.5])

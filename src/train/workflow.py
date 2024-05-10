@@ -2,9 +2,10 @@
 import time
 from importlib import import_module
 from typing import TYPE_CHECKING, List, Optional
-
+from torch.utils.data import Dataset, DataLoader
 
 from data.common import DatasetConfig
+from data.transformer_loader import TransformerDataset
 from extras.constants import get_model_info
 from tools.train_eval import train
 from train.trainer import CustomClassifyTrainer
@@ -34,7 +35,7 @@ def run_train(
         embedding = 'random'
     model_name = model_args.model_name
     
-    from data.transformer_loader import build_dataset, build_iterator
+    from data.transformer_loader import build_dataset
     
     config = create_config(
         model_args = model_args,
@@ -44,6 +45,10 @@ def run_train(
     
     # 超参数设置
     train_data, val_data, test_data = build_dataset(config)
+    train_dataset = TransformerDataset(train_data)
+    val_dataset = TransformerDataset(val_data)
+    test_dataset =TransformerDataset(test_data)
+    
     start_time = time.time()
     print("Loading data...")
     # vocab, train_data, dev_data, test_data = build_dataset(config, 
@@ -57,9 +62,27 @@ def run_train(
     check_dir_exist(training_args.output_dir, create=True)
     
     
-    train_iter = build_iterator(train_data, config)
-    val_iter = build_iterator(val_data, config)
-    test_iter = build_iterator(test_data, config)
+    # train_iter = build_iterator(train_data, config)
+    # val_iter = build_iterator(val_data, config)
+    # test_iter = build_iterator(test_data, config)
+    train_loader = DataLoader(train_dataset,
+                              batch_size=config.per_device_train_batch_size,
+                              num_workers=config.num_workers,
+                              shuffle=config.shuffle,
+                              drop_last=config.drop_last
+                              )
+    val_loader = DataLoader(val_dataset,
+                            batch_size=config.per_device_eval_batch_size,
+                            num_workers=config.num_workers,
+                              shuffle=config.shuffle,
+                              drop_last=config.drop_last
+                            )
+    test_loader = DataLoader(test_dataset,
+                             batch_size=config.per_device_eval_batch_size,
+                             num_workers=config.num_workers,
+                              shuffle=config.shuffle,
+                              drop_last=config.drop_last)
+    
     time_dif = get_time_dif(start_time)
     
     
@@ -73,11 +96,13 @@ def run_train(
     print("Training...")
     start_time = time.time()
     trainer = CustomClassifyTrainer(model,
+                                    tokenizer=config.tokenizer,
+                                    data_args=data_args,
                                     training_args=training_args,
                                     model_args=model_args,
-                                    train_iter=train_iter,
-                                    val_iter=val_iter,
-                                    test_iter=test_iter)
+                                    train_iter=train_loader,
+                                    val_iter=val_loader,
+                                    test_iter=test_loader)
     trainer.train()
     
     time_dif = get_time_dif(start_time)
