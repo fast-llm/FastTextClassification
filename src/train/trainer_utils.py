@@ -1,5 +1,6 @@
 import os
 import random
+import shutil
 import numpy as np
 from enum import Enum
 
@@ -13,12 +14,13 @@ from transformers import Trainer
 from transformers.optimization import get_scheduler
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
+from extras.constants import SAVE_MODEL_NAME
 from extras.loggings import get_logger
 from hparams.data_args import DataArguments
 from hparams.training_args import  TrainingArguments
 from hparams.model_args import ModelArguments
 from models.component.common import ModelConfig
-from train.training_types import LossFnType
+from train.training_types import LossFnType, SaveModelType
 
 
 if TYPE_CHECKING:
@@ -429,6 +431,122 @@ def calculate_accuracy(pred: torch.Tensor,
     else:
         return calculate_binary_accuracy(pred, label)
 
+def prepare_text(text:str, 
+                 tokenizer:"torch.nn.module", 
+                 pad_size:int=768,
+                 device:str=None):
+    device = device if device else 'cpu'
+    inputs = tokenizer(text,
+                        truncation=True,  
+                        return_tensors="pt", 
+                        padding='max_length', 
+                        max_length=pad_size
+                        )
+    if device:
+        for key in inputs:
+            inputs[key] = inputs[key].to(device)
+    return inputs['input_ids'],inputs['attention_mask'],inputs['token_type_ids']
+
+
+class ModelEntry:
+    def __init__(self,loss:float, score:float, model_path:str):
+        self.loss = loss
+        self.score = score
+        self.model_path = model_path
+    
+    def __eq__(self, other):
+        return self.model_path == other.model_path
+
+    def __hash__(self):
+        return hash(self.model_path)
+
+    def __repr__(self):
+        return f"{self.model_path} (Loss: {self.loss}, Score: {self.score})"
+
+class ModelManager:
+    def __init__(self, num_best_models: int = 5):
+        self.best_models = []
+        self.num_best_models = num_best_models
+
+    def update_best_models(self, new_model: ModelEntry):
+        # 如果模型已存在，则先移除旧的记录
+        if new_model in self.best_models:
+            self.best_models.remove(new_model)
+
+        # 添加新模型到列表
+        self.best_models.append(new_model)
+
+        # 按得分降序，损失升序排序
+        self.best_models.sort(key=lambda x: (-x.score, x.loss))
+        
+        # 保持列表中只有最优的模型数量
+        while len(self.best_models) > self.num_best_models:
+            removed_model = self.best_models.pop()  # 删除性能最差的模型
+            if os.path.exists(removed_model.model_path):
+                shutil.rmtree(removed_model.model_path)  # 确认文件存在后再删除
+                logger.info(f"Removed older model: {removed_model}")
+
+class LogState:
+    def __init__(self, epoch=None, step=None, learning_rate=None, loss=None, accuracy=None, grad_norm=None, eval_loss=None, eval_accuracy=None):
+        self.log = {
+            "epoch": epoch,
+            "step": step,
+            "learning_rate": learning_rate,
+            "loss": loss,
+            "accuracy": accuracy,
+            "grad_norm": grad_norm,
+            "eval_loss": eval_loss,
+            "eval_accuracy": eval_accuracy
+        }
+    def to_dict(self):
+        return self.log
+
+class EarlyStopping:
+    def __init__(self, patience:int=3, verbose:bool=False, delta:float=0.0):
+        """_summary_
+        Args:
+            patience (int, optional): _description_. Defaults to 3.
+            verbose (bool, optional): _description_. Defaults to False. verbose 为True，则打印详细信息
+            delta (float, optional): _description_. Defaults to 0.
+        """
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.best_loss = None
+        self.early_stop = False
+        self.val_acc_min = float('inf')
+        self.delta = delta
+        self.logger = get_logger('EarlyStopping')
+        
+    def __call__(self, acc:float):
+        """_summary_
+        初始化时，设定了self.best_score = None
+        if 语句第一行判断 self.best_score 是否为初始值，如果是初始值，则将 score 赋值给 self.best_score ，然后返回True保存模型
+        当目前分数比最好分数加 self.delta 小时，就认为模型没有改进，将 counter 计数器加1，当计数器值超过 patience 的时候，就令early_stop为True，让模型停止训练。
+        当目前分数比最好分数加 self.delta 大时，我们认为模型有改进，将目前分数赋值给最好分数，令计数器归零。返回True
+        Args:
+            acc (_type_): _description_
+        """
+        score = acc
+        if self.best_score is None:
+            self.best_score = score
+            # 保存模型
+            return True
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            if self.verbose:
+                logger.info(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            if self.counter >= self.patience:
+                self.early_stop = True
+            return False
+        else:
+            self.best_score = score
+            self.counter = 0
+            # 保存模型
+            return True
+    
+
 
 
 class ClassificationReport:
@@ -474,22 +592,25 @@ class ClassificationReport:
         
         # Generate confusion matrix and calculate per-class accuracy
         cm = confusion_matrix(labels_all.cpu().numpy(), binary_predictions.cpu().numpy(), labels=np.arange(self.num_classes))
+        # 防止除以零
+        np.seterr(divide='ignore', invalid='ignore')
         class_accuracy = np.nan_to_num(cm.diagonal() / cm.sum(axis=1), nan=0.0)
-        total_per_class = cm.sum(axis=1)  # Total samples per class
+        correct_per_class = cm.diagonal()  # Diagonal elements are the correct predictions per class
         
         total = labels_all.numel()
         correct = (binary_predictions == labels_all).sum().item()
         
+        
         # 计算准确率
         accuracy = correct / total if total > 0 else 0  # 防止除以零
-        return class_accuracy, correct, total, total_per_class, precision, recall, f1, support
+        return class_accuracy, correct, total, precision, recall, f1, correct_per_class, support
     
     def metrics(self):
-        class_accuracy, correct, total, total_per_class, precision, recall, f1, support = self.calculate_metrics()
+        class_accuracy, correct, total, precision, recall, f1, correct_per_class, support  = self.calculate_metrics()
         # 构建报告字符串
-        report = "          class        accuracy     precision     recall      f1-score      support     total\n\n"
+        report = "          class        accuracy     precision     recall      f1-score      total     support\n\n"
         for i in range(self.num_classes):
-            report += f"{self.adjusted_target_names[i]:>15}    {class_accuracy[i]:>10.{self.digits}f}    {precision[i]:>10.{self.digits}f}    {recall[i]:>10.{self.digits}f}    {f1[i]:>10.{self.digits}f}    {support[i]:>6}    {total_per_class[i]:>6}\n"
+            report += f"{self.adjusted_target_names[i]:>15}    {class_accuracy[i]:>10.{self.digits}f}    {precision[i]:>10.{self.digits}f}    {recall[i]:>10.{self.digits}f}    {f1[i]:>10.{self.digits}f}    {correct_per_class[i]:>6}    {support[i]:>6}\n"
         return report
 
 
