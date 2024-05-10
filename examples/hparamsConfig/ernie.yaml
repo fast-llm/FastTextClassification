@@ -3,24 +3,27 @@
 training:
   lang: 'cn'                                          # embedding 语言
   use_word: false                                     # 
-  epochs: 50                                          # 训练的总周期数
+  epochs: 10                                          # 训练的总周期数
   require_improvement: 1000                           # 早停的步数
   per_device_train_batch_size: 8                     # 每批训练的样本数
   per_device_eval_batch_size: 10                      # 每批测试的样本数
-  update_all_layers: true                             # 更新预训练权重
+  update_all_layers: true                             # 更新model预训练权重
+  use_logits: false                                   # 是否使用logits
   lr_scheduler_type: "cosine"                         # linear,cosine,polynomial,constant...
-  learning_rate: 0.01                                 # 优化器的学习率
-  warmup_steps: 20                                    # 学习率预热步数,两个只能有一个大于0,否则步数覆盖
-  warmup_ratio: 0.1                                   # 学习率预热比例
+  learning_rate: 1e-3                                 # 优化器的学习率
+  learning_rate_model: []                              # 逐层学习率
+  warmup_steps: 100                                    # 学习率预热步数,两个只能有一个大于0,否则步数覆盖
+  warmup_ratio: 0.0                                   # 学习率预热比例
   dropout_rate: 0.1                                   # Dropout比率，用于防止过拟合
   threshold: 0.5                                      # 计算准确率的阈值
-  activation: "ReLU"                                  # 激活函数
   seed: 42                                            # 随机种子，用于确保实验的可复现性
+  resume: false                                       # 是否从checkpoint恢复训练
+  resume_file: null                                     # 恢复训练的checkpoint文件
 
 # 优化器配置
 optimizer_settings:
   loss_fn: "CrossEntropyLoss"                         # CrossEntropyLoss, BCELoss,NLLLoss, 已经经过softmax就用BCE loss 损失函数
-  optimizer_type: "SGD"                               # 优化器类型
+  optimizer_type: "AdamW_LLRD"                        # 优化器类型 AdamW_LLRD, SGD, AdamW, Adam, Adagrad
   # weight_init_method: "xavier_uniform"              # 优化器的权重初始化方法
   weight_decay: 0.0                                   # 权重衰减
   momentum: 0.9                                       # SGD优化器的动量
@@ -40,11 +43,11 @@ model_parameters:
     - layer_type: "Dense"                             # 层的类型
       size: 1024                                       # 第一层的大小
       activation: "GELU"                              # 第一层的激活函数
-      dropout: 0.1                                    # 第一层的Dropout率
+      dropout: 0.0                                    # 第一层的Dropout率
     - layer_type: "Dense"                             # 层的类型
       size: 256                                       # 第二层的大小
       activation: "GELU"                              # 第二层的激活函数
-      dropout: 0.1                                    # 第二层的Dropout率
+      dropout: 0.0                                    # 第二层的Dropout率
 
 # 超参数搜索配置
 hyper_params:
@@ -58,7 +61,7 @@ hyper_params:
   learning_rate_bounds: [1e-5, 1e-3]                  # 学习率的搜索范围
   batch_size_options: [16, 32, 64]                    # 批量大小的可选值
   regularization_strengths: [0, 1e-4, 1e-3]                     # L2正则化强度的可选值
-  dropout_rates: [0.3, 0.5, 0.7]                                # Dropout率的可选范围
+  dropout_rates: [0.1, 0.3, 0.5, 0.7]                                # Dropout率的可选范围
   activation_functions: ["ReLU", "LeakyReLU", "ELU", "GELU"]            # 激活函数的可选列表
   weight_initialization: ["xavier_uniform", "xavier_normal", "kaiming_uniform", "kaiming_normal"]  # 权重初始化策略的可选列表
 
@@ -66,10 +69,12 @@ hyper_params:
 data:
   max_samples: None               # 可以指定要使用的样本数量，如果为None，则使用所有可用样本
   processing_num_workers: 1       # 预处理数据的worker
+  shuffle: true                   # 是否打乱顺序
+  drop_last: false                # 是否丢弃最后的
   streaming: false                # 指定是否使用延迟加载，延迟加载适用于大数据集，以避免一次性加载到内存
-  train_file: "train.txt"         # 训练集
-  val_file: "val.txt"             # 验证集
-  test_file: "test.txt"           # 测试机
+  train_file: "train.json"         # 训练集
+  val_file: "val.json"             # 验证集
+  test_file: "test.json"           # 测试机
   class_file: "class.txt"         # 类别表
   vocab_file: "vocab.txt"         # 自定义词汇表
   SEP: "\t"                       # 分割符号
@@ -82,25 +87,27 @@ data:
 output:
   log_dir: "log"
   logging_steps: 5              # 日志记录的步数
+  num_best_models: 5            # 保存的最佳模型数量
   eval_steps: 50                # 评估的步数
   eval_metric: "accuracy"       # 评估的指标
-  save_steps: 1000              # 模型保存的步数
+  save_steps: 100              # 模型保存的步数
   save_total_limit: 5           # 保存的模型数量
 
 early_stopping:
-  enable: false
-  patience: 3
-  early_stop_metric: "eval_loss"
-  delta: 0.0
+  enable: true
+  patience: 5                   # 早停的步数
+  verbose: false              # 是否打印早停信息
+  early_stop_metric: "eval_loss"  # 早停的指标
+  delta: 0.001                # 早停的阈值,模型过拟合，考虑减少 patience 或增加 delta
 
 # TensorBoard配置
 tensor_board:
-  enable: false
-  tensorboard_dir: null
-  use_tensorboard: false
+  enable: true
+  tensorboard_dir: null   # TensorBoard日志目录目录
 
 # 权重与偏差（Wandb）配置
 wandb:
-  wandb_project: null
-  wandb_kwargs: {}
-  wandb_logging: false
+  enable: false                 # 是否启用Wandb
+  wandb_project: null          # Wandb项目名称
+  wandb_kwargs: {}           # Wandb参数
+  wandb_logging: false       # 是否记录Wandb日志
