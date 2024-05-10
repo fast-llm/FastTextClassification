@@ -11,6 +11,7 @@ from data.utils_multi import get_multi_hot_label, get_multi_list_label
 
 from extras.loggings import get_logger
 from models.component.common import ModelConfig
+from utils import read_data
 logger = get_logger(__name__)
 
 
@@ -20,7 +21,6 @@ PAD, CLS = '[PAD]', '[CLS]'  # padding符号, bert中综合信息符号, SEP并�
 def load_dataset(path:str,
                  tokenizer:"torch.nn.module", 
                  tag:str,
-                 SEP:str,
                  pad_size:str,
                  max_samples:int,
                  num_classes:int,
@@ -46,42 +46,44 @@ def load_dataset(path:str,
     flag = 0
     with open(path, 'r', encoding='UTF-8', newline='') as f:
         logger.info(f"loading {tag} dataset from \n{path}")
-        f = csv.reader(f, delimiter=SEP)
-        for line in tqdm(f):
-            if max_samples is not None and f.line_num > max_samples:
+        data = read_data(data_path=path,
+                         text_col='text',
+                         label_col='label'
+                         )
+        line_num = 0
+        for line in tqdm(data):
+            if max_samples is not None and line_num > max_samples:
                 break
-            if len(line) != 2:
-                logger.error(f"行格式错误: {line}")
-                continue
-            content, label = line
-            if flag<2:
-                logger.info(f"content: {content}\nlabel: {label}")
-                flag += 1
-            # 转换数据为list
-            label = get_multi_list_label(label=label,
-                                            multi_class=multi_class,
-                                            multi_label=multi_label)
-            label = get_multi_hot_label(doc_labels = [label], 
-                                        num_class = num_classes, 
-                                        dtype=torch.float)[0]
-            
-            inputs = tokenizer(content,
-                                truncation=True,  
-                                return_tensors="pt", 
-                                padding='max_length', 
-                                max_length=pad_size
+            if line:
+                content, label = line['text'],line['label']
+                if flag<2:
+                    logger.info(f"content: {content}\nlabel: {label}")
+                    flag += 1
+                # 转换数据为list
+                label = get_multi_list_label(label=label,
+                                                multi_class=multi_class,
+                                                multi_label=multi_label)
+                label = get_multi_hot_label(doc_labels = [label], 
+                                            num_class = num_classes, 
+                                            dtype=torch.float)[0]
+                
+                inputs = tokenizer(content,
+                                    truncation=True,  
+                                    return_tensors="pt", 
+                                    padding='max_length', 
+                                    max_length=pad_size
+                                    )
+                batch_contents.append((inputs['input_ids'],
+                                inputs['attention_mask'],
+                                inputs['token_type_ids'], 
+                                label)
                                 )
-            batch_contents.append((inputs['input_ids'],
-                            inputs['attention_mask'],
-                            inputs['token_type_ids'], 
-                            label)
-                            )
+                line_num+=1
     return batch_contents
 
 def build_dataset(config: "ModelConfig") -> tuple:
     train = load_dataset(config.train_path, tag='training',
                         tokenizer=config.tokenizer,
-                        SEP = config.SEP,
                         pad_size = config.pad_size,
                         max_samples = config.max_samples,
                         num_classes = config.num_classes,
@@ -90,7 +92,6 @@ def build_dataset(config: "ModelConfig") -> tuple:
                          )
     val = load_dataset(config.val_path, tag = 'validation',
                        tokenizer=config.tokenizer,
-                        SEP = config.SEP,
                         pad_size = config.pad_size,
                         max_samples = config.max_samples,
                         num_classes = config.num_classes,
@@ -99,7 +100,6 @@ def build_dataset(config: "ModelConfig") -> tuple:
                        )
     test = load_dataset(config.test_path, tag = 'test',
                         tokenizer=config.tokenizer,
-                        SEP = config.SEP,
                         pad_size = config.pad_size,
                         max_samples = config.max_samples,
                         num_classes = config.num_classes,

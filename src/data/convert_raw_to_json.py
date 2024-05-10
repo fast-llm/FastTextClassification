@@ -55,7 +55,7 @@ if __name__ == "__main__":
     parser.add_argument("--split_ratio", type=str, default="8 1 1", 
                         help="Ratio of training validation testing data, also '0.9 0.1 0.1' is ok")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--sep", type=str, default="\t", help="Separator for the formatted data")
+    parser.add_argument("--sep", type=str, default='\t', help="Separator for the formatted data")
     parser.add_argument("--label_col", type=str, default="label", help="Name of the label column")
     parser.add_argument("--text_col", type=str, default="review", help="Name of the text column")
     args = parser.parse_args()
