@@ -65,7 +65,6 @@ class TrainingArguments:
     learning_rate: float = field(default=None,metadata={"help": "The initial learning rate for Adam."})
     warmup_ratio: float = field(default=None,metadata={"help": "Proportion of training to perform linear learning rate warmup for."})
     dropout_rate: float = field(default=None,metadata={"help": "Dropout rate for the model."})
-    activation: str = field(default=None,metadata={"help": "Activation function for the model."})
     seed: int = field(default=None,metadata={"help": "Random seed for initialization."})
     threshold: float = field(default=None,metadata={"help": "threshold for acc"})
     resume: bool = field(default=None,metadata={"help": "Whether or not to resume training."})
@@ -199,8 +198,6 @@ class TrainingArguments:
             self.warmup_ratio = config_data.get_parameter("training").get('warmup_ratio', self.warmup_ratio)
         if not self.dropout_rate:
             self.dropout_rate = config_data.get_parameter("training").get('dropout_rate', 0.1)
-        if not self.activation:
-            self.activation = config_data.get_parameter("training").get('activation', self.activation)
         if not self.seed:
             self.seed = config_data.get_parameter("training").get('seed', 42)
         if not self.threshold:
