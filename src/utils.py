@@ -17,12 +17,37 @@ from extras.loggings import get_logger
 
 logger = get_logger(__name__)
 
+def count_lines_in_jsonl_file(file_path: str) -> int:
+    """
+    计算 JSONL 文件的行数，每一行代表一个 JSON 对象。
+    :param file_path: JSONL 文件的路径。
+    :return: 文件中的行数。
+    """
+    line_count = 0
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            for _ in file:
+                line_count += 1
+        print(f"文件中共有 {line_count} 行")
+    except Exception as e:
+        print(f"读取文件时出错：{file_path}，错误信息：{e}")
+        raise Exception(f"读取文件时出错：{file_path}，错误信息：{e}")
+
+    return line_count
+
 def read_data(data_path:str,
               sep:str='\t', 
               sheet_name=None,
               label_col:str='label',
               text_col:str='review'
               )->list:
+    if data_path.endswith('.jsonl'):
+        res = read_jsonl(data_path)
+        data = []
+        for item in res:
+            data.append([item[text_col], item[label_col]])
+        text_index = 0
+        label_index = 1
     if data_path.endswith('.json'):
         res = read_json(data_path)
         data = []
@@ -159,6 +184,23 @@ def export_json(data: dict, file_path: str):
         logger.error(f"导出JSON文件失败：{file_path}，错误信息：{e}")
         raise Exception(f"导出JSON文件失败：{file_path}，错误信息：{e}")
 
+def export_jsonl(data: list, file_path: str):
+    """
+    将字典列表导出到指定路径的 JSONL 文件。
+    :param data: 要导出的字典列表。
+    :param file_path: 目标 JSONL 文件的路径。
+    """
+    try:
+        with open(file_path, 'w', encoding='utf-8') as file:
+            for item in data:
+                # 将每个字典转换为 JSON 字符串，并确保不转义 Unicode 字符
+                json_string = json.dumps(item, ensure_ascii=False)
+                # 写入 JSON 字符串到文件，并添加换行符以形成 JSONL 格式
+                file.write(json_string + '\n')
+        print(f"数据成功导出到 JSONL 文件：{file_path}")
+    except Exception as e:
+        print(f"导出 JSONL 文件失败：{file_path}，错误信息：{e}")
+        raise Exception(f"导出 JSONL 文件失败：{file_path}，错误信息：{e}")
 
 def get_file_name(file_path:str,file_type:str='.json', endwith:str ='_object')->str:
     """
