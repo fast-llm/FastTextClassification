@@ -3,7 +3,7 @@
 training:
   lang: 'cn'                                          # embedding 语言
   use_word: false                                     # 
-  epochs: 10                                          # 训练的总周期数
+  epochs: 50                                          # 训练的总周期数
   require_improvement: 1000                           # 早停的步数
   per_device_train_batch_size: 8                     # 每批训练的样本数
   per_device_eval_batch_size: 10                      # 每批测试的样本数

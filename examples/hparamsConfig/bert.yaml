@@ -9,11 +9,12 @@ training:
   per_device_eval_batch_size: 10                      # 每批测试的样本数
   update_all_layers: true                             # 更新model预训练权重
   use_logits: false                                   # 是否使用logits
-  lr_scheduler_type: "cosine"                         # linear,cosine,polynomial,constant...
+  lr_scheduler_type: "cosine_with_restarts"                         # linear,cosine,polynomial,constant...
   learning_rate: 5e-3                                 # 优化器的学习率
   learning_rate_model: []                              # 逐层学习率
-  warmup_steps: 100                                    # 学习率预热步数,两个只能有一个大于0,否则步数覆盖
-  warmup_ratio: 0.0                                   # 学习率预热比例
+  warmup_steps: 5000                                    # 学习率预热步数,两个只能有一个大于0,否则步数覆盖，num_warmup_steps 可以设置为 500 到 1000
+  warmup_ratio: 0.1                                   # 学习率预热比例，通常设置为总训练步数的 5% 到 10%,
+  T_max: 10                                           # cosine 学习率调度器的周期数
   dropout_rate: 0.1                                   # Dropout比率，用于防止过拟合
   threshold: 0.5                                      # 计算准确率的阈值
   seed: 42                                            # 随机种子，用于确保实验的可复现性
