@@ -6,6 +6,7 @@ import torch
 from transformers import AutoTokenizer
 
 from extras.constants import SAVE_MODEL_NAME
+from extras.misc import torch_gc
 from train.trainer_utils import create_config, create_model
 
 from hparams.data_args import DataArguments
@@ -21,6 +22,44 @@ class PredictModel(BaseModel):
     pad_size: Optional[int] = 512
     
 
+class ModelHandler:
+    def __init__(self, model_path, pad_size, device):
+        self.device = self.set_device(device)
+        self.model, self.tokenizer = self.build_model(model_path, pad_size, self.device)
+
+    def set_device(self,devices:str):
+        if devices == 'cpu':
+            os.environ['CUDA_VISIBLE_DEVICES'] = ""
+            device = torch.device('cpu')
+            torch_gc()
+        elif 'cuda' in devices:
+            device = torch.device(devices) if torch.cuda.is_available() else torch.device('cpu')
+        return device
+
+    def build_model(self, model_path:str, pad_size: int,device:str):
+        model_args = ModelArguments.load_from_bin(model_path)
+        data_args = DataArguments.load_from_bin(model_path)
+        training_args = TrainingArguments.load_from_bin(model_path)
+        config = create_config(
+            model_args = model_args,
+            data_args = data_args,
+            training_args = training_args
+        )
+
+        tokenizer = AutoTokenizer.from_pretrained(model_path,
+                                                truncation=True,  
+                                                return_tensors="pt", 
+                                                padding='max_length', 
+                                                max_length=pad_size)
+        model = create_model(config)
+        model.load_state_dict(torch.load(os.path.join(model_path, SAVE_MODEL_NAME)))
+        model = model.to(device)
+        torch_gc()
+        return model, tokenizer
+
+    async def get_model(self):
+        return self.model, self.tokenizer, self.device
+
 # 切分句子
 def cut_sent(txt):
     #先预处理去空格等
@@ -31,26 +70,7 @@ def cut_sent(txt):
     return nnlist
 
 
-def build_model(model_path:str, pad_size: int,device:str):
-    model_args = ModelArguments.load_from_bin(model_path)
-    data_args = DataArguments.load_from_bin(model_path)
-    training_args = TrainingArguments.load_from_bin(model_path)
-    config = create_config(
-        model_args = model_args,
-        data_args = data_args,
-        training_args = training_args
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained(model_path,
-                                            truncation=True,  
-                                            return_tensors="pt", 
-                                            padding='max_length', 
-                                            max_length=pad_size)
-    model = create_model(config).to(device)
-    model.load_state_dict(torch.load(os.path.join(model_path, SAVE_MODEL_NAME)))
-    return model, tokenizer
-    
-def prepare_text(text:list[str]|str, tokenizer:"torch.nn.module", pad_size:int=768,device:str=None):
+def prepare_text(text:list[str]|str, tokenizer:"torch.nn.module", pad_size:int=768,device:str="cpu"):
     if isinstance(text, str):
         text = [text]
     elif not isinstance(text, list):
