@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 import csv
 import argparse
 from tqdm import tqdm
-from utils import export_json, read_data, read_json, read_lines
+from utils import export_json, read_data, read_json, read_lines, export_jsonl
 
 
 
@@ -19,7 +19,7 @@ def main(data_path:str,
          seed:int=42, sep='\t', 
          label_col:str='label', 
          text_col:str='review'):
-     train_ratio, val_ratio, test_ratio = map(int, split_ratio.split(' '))
+     train_ratio, val_ratio, test_ratio = map(float, split_ratio.split(' '))
      total_ratio = train_ratio + val_ratio + test_ratio
      
      data = read_data(data_path=data_path,
@@ -32,9 +32,9 @@ def main(data_path:str,
      train, temp = train_test_split(data, test_size=(1 - train_ratio / total_ratio), random_state=seed)
      val, test = train_test_split(temp, test_size=(test_ratio) / (val_ratio + test_ratio), random_state=seed)
 
-     export_json(train, os.path.join(save_path, train_file))
-     export_json(val, os.path.join(save_path, val_file))
-     export_json(test, os.path.join(save_path, test_file))
+     export_jsonl(train, os.path.join(save_path, train_file))
+     export_jsonl(val, os.path.join(save_path, val_file))
+     export_jsonl(test, os.path.join(save_path, test_file))
 
      # Optionally save class labels
      class_labels = [chr(65 + i) for i in range(num_class)]  # A-Z letters
