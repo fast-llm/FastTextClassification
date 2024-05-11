@@ -7,7 +7,6 @@ from torch.utils.data import Dataset, DataLoader
 from data.common import DatasetConfig
 from data.transformer_loader import TransformerDataset
 from extras.constants import get_model_info
-from tools.train_eval import train
 from train.trainer import CustomClassifyTrainer
 from .trainer_utils import create_config, create_model, setup_seed, init_network
 
@@ -33,8 +32,7 @@ def run_train(
     embedding = 'embedding_SougouNews.npz' if training_args.lang == "cn" else "glove.840B.300d.txt"
     if model_args.embedding == 'random':
         embedding = 'random'
-    model_name = model_args.model_name
-    
+
     from data.transformer_loader import build_dataset
     
     config = create_config(
@@ -44,11 +42,8 @@ def run_train(
     )
     
     # 超参数设置
-    train_data, val_data, test_data = build_dataset(config)
-    train_dataset = TransformerDataset(train_data)
-    val_dataset = TransformerDataset(val_data)
-    test_dataset =TransformerDataset(test_data)
-    
+    train_dataset, val_dataset, test_dataset = build_dataset(config)
+
     start_time = time.time()
     print("Loading data...")
     # vocab, train_data, dev_data, test_data = build_dataset(config, 
@@ -61,10 +56,6 @@ def run_train(
     #     config.n_vocab = len(vocab)
     check_dir_exist(training_args.output_dir, create=True)
     
-    
-    # train_iter = build_iterator(train_data, config)
-    # val_iter = build_iterator(val_data, config)
-    # test_iter = build_iterator(test_data, config)
     train_loader = DataLoader(train_dataset,
                               batch_size=config.per_device_train_batch_size,
                               num_workers=config.num_workers,

@@ -10,17 +10,16 @@ import torch
 from torch.optim import Adam, SGD, AdamW, Adagrad
 from torch.optim.lr_scheduler import OneCycleLR
 import torch.nn as nn
-from transformers import Trainer
 from transformers.optimization import get_scheduler
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
+from models.component.common import ModelConfig
+from train.training_types import LossFnType
 from extras.constants import SAVE_MODEL_NAME
 from extras.loggings import get_logger
 from hparams.data_args import DataArguments
 from hparams.training_args import  TrainingArguments
 from hparams.model_args import ModelArguments
-from models.component.common import ModelConfig
-from train.training_types import LossFnType, SaveModelType
 
 
 if TYPE_CHECKING:

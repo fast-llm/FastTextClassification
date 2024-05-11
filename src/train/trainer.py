@@ -52,6 +52,8 @@ class CustomClassifyTrainer(object):
         self.val_iter = val_iter
         self.test_iter = test_iter
         
+        self.streaming = self.data_args.streaming
+        
         self.early_stopper = EarlyStopping(patience=self.training_args.patience,
                                            verbose=self.training_args.verbose, 
                                            delta=self.training_args.delta,
@@ -98,6 +100,7 @@ class CustomClassifyTrainer(object):
                                                     self.data_args.dataset,
                                                     'data',
                                                     self.data_args.class_file))
+        self.eval_steps = self.training_args.eval_steps
         self.cur_step = 0
         self.best_epoch = 0
         self.best_acc = 0
@@ -153,12 +156,15 @@ class CustomClassifyTrainer(object):
             acc_meter = AverageMeter()
             total_pred = []
             total_labels = []
-            for step, (inputs, labels) in enumerate(self.train_iter):
-                
-                input_ids, attention_mask, token_type_ids = inputs
-                input_ids = input_ids.squeeze()
-                attention_mask = attention_mask.squeeze()
-                token_type_ids = token_type_ids.squeeze()
+            for step, batch in enumerate(self.train_iter):
+                if self.streaming:
+                    input_ids,attention_mask,token_type_ids,labels = batch
+                else:
+                    inputs, labels = batch
+                    input_ids, attention_mask, token_type_ids = inputs
+                    input_ids = input_ids.squeeze()
+                    attention_mask = attention_mask.squeeze()
+                    token_type_ids = token_type_ids.squeeze()
                 
                 
                 self.model.zero_grad()
@@ -203,7 +209,7 @@ class CustomClassifyTrainer(object):
                     avg_loss = loss_meter.avg
                     avg_accuracy = acc_meter.avg
                     self.accelerator.print(f"epoch:{epoch+1}/{self.epochs}, step:{self.cur_step}, loss {avg_loss:.4f}, avg_accuracy: {100*avg_accuracy:.2f}%, "
-                                           f"lr: {self.lr_scheduler.get_last_lr()[0]:.4e}, "
+                                           f"lr: {self.lr_scheduler.get_last_lr()[-1]:.4e}, "
                                            f"elapsed/remain time: {get_time_dif(self.start_time)}/{self.remaining_time}"
                                            )
                     # 主线程 保存训练日志
@@ -222,7 +228,10 @@ class CustomClassifyTrainer(object):
 
                     loss_meter.reset()
                     acc_meter.reset()
-
+                
+                # 进行评估
+                if (1+self.cur_step) % self.eval_steps == 0:
+                    self.validate(epoch)
                 # 迭代全局step
                 self.cur_step+=1
         
@@ -275,12 +284,16 @@ class CustomClassifyTrainer(object):
             acc_meter = AverageMeter()
             total_pred = []
             total_labels = []
-            for step, (inputs, labels) in enumerate(self.val_iter):
-                input_ids, attention_mask, token_type_ids = inputs
-                input_ids = input_ids.squeeze()
-                attention_mask = attention_mask.squeeze()
-                token_type_ids = token_type_ids.squeeze()
-                
+            for step,batch in enumerate(self.val_iter):
+                if self.streaming:
+                    input_ids,attention_mask,token_type_ids,labels = batch
+                else:
+                    inputs, labels = batch
+                    input_ids, attention_mask, token_type_ids = inputs
+                    input_ids = input_ids.squeeze()
+                    attention_mask = attention_mask.squeeze()
+                    token_type_ids = token_type_ids.squeeze()
+
                 
                 # accelerator.print(f"input_ids device: {input_ids.device}")
                 logits, _, _ = self.model([input_ids, attention_mask, token_type_ids])
