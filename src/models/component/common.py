@@ -77,7 +77,7 @@ class ModelConfig(object):
         self.pad_size = data_args.cutoff_len  # 每句话处理成的长度(短填长切)
         self.learning_rate = training_args.learning_rate  # 学习率
         self.model_path = model_args.model_name_or_path
-        
+        self.streaming = data_args.streaming
         self.SEP = data_args.SEP
         
         # transformers4.22开始支持ernie
