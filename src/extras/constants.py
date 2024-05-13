@@ -140,6 +140,7 @@ register_model_group(
     hidden_size=768,
     link='',
     description="""
+    Deberta中，把Content和Position embedding做了解耦，Word embedding依旧由Content embedding和Position组成，而不是简单的加和，具有更强的表示能力
     """
 )
 

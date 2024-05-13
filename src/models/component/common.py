@@ -53,7 +53,7 @@ class ModelConfig(object):
                                        data_args.dataset,
                                        'data',
                                        data_args.class_file)    # 类别名单
-        self.class_list = [x.strip() for x in open(self.class_path).readlines()]  # 类别名单
+        # self.class_list = [x.strip() for x in open(self.class_path).readlines()]  # 类别名单
         self.vocab_path = os.path.join(data_args.dataset_dir,
                                        data_args.dataset,
                                        'data',
