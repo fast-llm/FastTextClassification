@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 import torch
 from transformers import AutoTokenizer
-
+from dataclasses import dataclass, field
 from extras.constants import SAVE_MODEL_NAME
 from extras.misc import torch_gc
 from train.trainer_utils import create_config, create_model
@@ -20,20 +20,56 @@ class TextModel(BaseModel):
 class PredictModel(BaseModel):
     text: list[str]
     pad_size: Optional[int] = 512
+
+@dataclass
+class InferenceArguments:
+    model_name_or_path: str = field(
+        default="ernie-3.0-base-zh",
+        metadata={
+            "help": "Path to the model weight or identifier from huggingface.co/models or modelscope.cn/models."
+        },
+    )
+    pad_size : int = field(
+        default=768,
+        metadata={
+            "help": "pad size"
+        },
+    )
+    num_gpus: int = field(
+        default=0,
+        metadata={
+            "help": "Number of GPUs to use"
+        },
+    )
+    port: int = field(
+        default=9090,
+        metadata={
+            "help": "Port to run the server"
+        },
+    )
+    workers: int = field(
+        default=1,
+        metadata={
+            "help": "Number of workers to run the server"
+        },
+    )
     
+    def __post_init__(self):
+        pass
 
 class ModelHandler:
-    def __init__(self, model_path, pad_size, device):
-        self.device = self.set_device(device)
-        self.model, self.tokenizer = self.build_model(model_path, pad_size, self.device)
+    def __init__(self, args:"InferenceArguments"):
+        
+        self.device = self.set_device(args.num_gpus)
+        self.model, self.tokenizer = self.build_model(args.model_name_or_path, 
+                                                      args.pad_size, 
+                                                      self.device)
 
-    def set_device(self,devices:str):
-        if devices == 'cpu':
-            os.environ['CUDA_VISIBLE_DEVICES'] = ""
+    def set_device(self,num_gpus:int):
+        if num_gpus >= 1:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
             device = torch.device('cpu')
-            torch_gc()
-        elif 'cuda' in devices:
-            device = torch.device(devices) if torch.cuda.is_available() else torch.device('cpu')
         return device
 
     def build_model(self, model_path:str, pad_size: int,device:str):
@@ -52,7 +88,7 @@ class ModelHandler:
                                                 padding='max_length', 
                                                 max_length=pad_size)
         model = create_model(config)
-        model.load_state_dict(torch.load(os.path.join(model_path, SAVE_MODEL_NAME)))
+        model.load_state_dict(torch.load(os.path.join(model_path, SAVE_MODEL_NAME),map_location=device))
         model = model.to(device)
         torch_gc()
         return model, tokenizer
