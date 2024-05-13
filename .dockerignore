@@ -1,0 +1,26 @@
+# 忽略所有 .txt 文件
+*.txt
+
+# 忽略特定目录
+node_modules/
+__pycache__/
+build/
+dist/
+
+# 忽略 Dockerfile 和 .dockerignore 文件
+Dockerfile
+.dockerignore
+
+# 忽略 Git 和虚拟环境相关目录
+.git/
+venv/
+
+# 忽略所有 Markdown 文件，但保留 README.md
+*.md
+!README.md
+
+# 忽略日志文件，但保留特定日志文件
+*.log
+model_logs/
+logs/
+data/
