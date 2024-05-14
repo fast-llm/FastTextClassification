@@ -46,7 +46,7 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
-from ...tools.configuration_ernie import ErnieConfig
+from .configuration_ernie import ErnieConfig
 
 logger = logging.get_logger(__name__)
 
