@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel,BertModel, BertTokenizer, AutoModelForMaskedLM, AutoTokenizer
 from extras.packages import compare_versions, get_transformer_version
-from models.component.modeling_ernie import ErnieModel
 from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
