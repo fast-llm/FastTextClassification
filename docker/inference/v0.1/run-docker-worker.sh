@@ -1,6 +1,6 @@
 export version=v0.1
 export docker_name=classification-worker
-# sudo docker stop ${docker_name} && sudo docker rm ${docker_name}
+sudo docker stop ${docker_name} && sudo docker rm ${docker_name}
 export CUDA_VISIBLE_DEVICES=2
 export PORT=9090
 export MODEL_NAME_OR_PATH=/platform_tech/xiongrongkang/checkpoint/ai_detect/ai_detect_v3/best_model

@@ -171,6 +171,18 @@ def create_model(config:ModelConfig) -> "PreTrainedModel":
             mlp_layers_config=config.mlp_layers
         )
         return model
+    elif 'qwen' in model_name:
+        from models.qwen import Model
+        model = Model(
+            model_path = config.model_path,
+            update_all_layers = config.update_all_layers,
+            multi_class = config.multi_class,
+            multi_label= config.multi_label,
+            num_classes=config.num_classes,
+            hidden_size=config.hidden_size,
+            mlp_layers_config=config.mlp_layers
+        )
+        return model
     raise ValueError("Model name or path is not specified.")
     
 

@@ -35,6 +35,7 @@ numba = "^0.59.1"
 openpyxl = "^3.1.2"
 ipykernel = "^6.29.4"
 tensorboard = "^2.16.2"
+gunicorn = "^22.0.0"
 
 
 [build-system]

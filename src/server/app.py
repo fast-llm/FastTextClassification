@@ -14,15 +14,18 @@ app = FastAPI()
 
 
 def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name_or_path", type=str, default='', help="model path")
-    parser.add_argument("--pad_size", type=int, default=768, help="pad size")
-    parser.add_argument("--num_gpus", type=int, default=0, help="number of GPUs to use")
-    parser.add_argument("--port", type=int, default=9090, help="Port to run the server on")
-    parser.add_argument("--workers", type=int, default=1, help="Number of workers to run the server")
-    args = parser.parse_args()
+    model_name_or_path = os.getenv("MODEL_NAME_OR_PATH", "")
+    pad_size = int(os.getenv("PAD_SIZE", 768))
+    num_gpus = int(os.getenv("NUM_GPUS", 0))
+    port = int(os.getenv("PORT", 9090))
+    workers = int(os.getenv("WORKERS", 1))
+    args = InferenceArguments(model_name_or_path=model_name_or_path, 
+                              pad_size=pad_size, 
+                              num_gpus=num_gpus, 
+                              port=port, 
+                              workers=workers)
     logger.info(f"args:{args}")
-    return InferenceArguments(**vars(args))
+    return args
 
 args = get_args()
 # 在应用启动时创建模型处理器的单一实例
@@ -53,5 +56,4 @@ async def textclass(item: PredictModel,model_data=Depends(model_handler.get_mode
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=args.port,workers=args.workers)
-
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
